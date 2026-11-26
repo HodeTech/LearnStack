@@ -40,25 +40,32 @@ export function administrationSnapshot(
 ): NativePageSnapshot {
   return {
     target:
-      view.kind === 'invitation'
-        ? `/studio/invitations/${view.invitation.invitationId}`
-        : view.kind === 'invitations'
-          ? '/studio/invitations'
-          : view.kind === 'invitation_policy'
-            ? '/studio/invitation-policy'
-            : view.kind === 'federation'
-              ? '/studio/federation'
-              : view.kind === 'member'
-                ? (('/studio/members/' + view.member.membershipId) as `/studio/members/${string}`)
-                : view.kind === 'role'
-                  ? (('/studio/roles/' + view.role.roleId) as `/studio/roles/${string}`)
-                  : view.kind === 'profile'
-                    ? '/portal/profile'
-                    : view.kind === 'members'
-                      ? '/studio/members'
-                      : view.kind === 'roles'
-                        ? '/studio/roles'
-                        : (('/' + view.kind) as '/studio' | '/portal'),
+      view.kind === 'data_request'
+        ? `/studio/data-requests/${view.request.id}`
+        : view.kind === 'data_requests'
+          ? '/studio/data-requests'
+          : view.kind === 'invitation'
+            ? `/studio/invitations/${view.invitation.invitationId}`
+            : view.kind === 'invitations'
+              ? '/studio/invitations'
+              : view.kind === 'invitation_policy'
+                ? '/studio/invitation-policy'
+                : view.kind === 'federation'
+                  ? '/studio/federation'
+                  : view.kind === 'member'
+                    ? (('/studio/members/' +
+                        view.member.membershipId) as `/studio/members/${string}`)
+                    : view.kind === 'role'
+                      ? (('/studio/roles/' + view.role.roleId) as `/studio/roles/${string}`)
+                      : view.kind === 'profile'
+                        ? '/portal/profile'
+                        : view.kind === 'members'
+                          ? '/studio/members'
+                          : view.kind === 'roles'
+                            ? '/studio/roles'
+                            : view.kind === 'data_request_erasure'
+                              ? '/studio/data-requests/erasure'
+                              : (('/' + view.kind) as '/studio' | '/portal'),
     site: {
       displayName: 'Institution',
       defaultLocale: 'en',

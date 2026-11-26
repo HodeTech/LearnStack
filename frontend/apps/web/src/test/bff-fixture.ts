@@ -24,6 +24,7 @@ export function bffFixture(
     account?: SessionDependencies['account'];
     invitations?: SessionDependencies['invitations'];
     retainedConsent?: SessionDependencies['retainedConsent'];
+    retainedDataRequest?: SessionDependencies['retainedDataRequest'];
     federationTest?: SessionDependencies['federationTest'];
     publicSignIn?: SessionDependencies['publicSignIn'];
     unscopedProvider?: boolean;
@@ -171,6 +172,7 @@ export function bffFixture(
       administration,
       invitations: options.invitations,
       retainedConsent: options.retainedConsent,
+      retainedDataRequest: options.retainedDataRequest,
       federationTest: options.federationTest,
       publicSignIn: options.publicSignIn,
       account: options.account ?? account,

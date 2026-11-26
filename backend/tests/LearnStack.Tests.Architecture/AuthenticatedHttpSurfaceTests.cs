@@ -251,6 +251,80 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Tenancy.InvitationPolicyController", "Set", "PUT", "tenancy/settings/invitation-policy", null,
             "SetTenantInvitationLifetime", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Settings.SetTenantInvitationLifetimeCommand), "LearnStackOperation:tenancy.setting.write_invitation_lifetime",
             typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 14, new(OperationClass.Must, OperationType.Update, "tenancy.setting.write", typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting))),
+        // ADR-0106, ADR-0107 § 4: the subject's key-less own data requests and the administrator's status-only view.
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "Create", "POST", "identity/me/data-requests", "exports",
+            "CreateOwnDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateOwnDataExportCommand), "LearnStackOperation:identity.data_request.create_own_export",
+            typeof(LearnStack.Api.Identity.DataRequestAcceptedResponse), 202, 24, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_export", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "CreateErasure", "POST", "identity/me/data-requests", "erasures",
+            "CreateOwnDataErasure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateOwnDataErasureCommand), "LearnStackOperation:identity.data_request.create_own_erasure",
+            typeof(LearnStack.Api.Identity.DataErasureAcceptedResponse), 202, 32, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_erasure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "CreateClosure", "POST", "identity/me/data-requests", "closures",
+            "CreateOwnAccountClosure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateOwnAccountClosureCommand), "LearnStackOperation:identity.data_request.create_own_closure",
+            typeof(LearnStack.Api.Identity.AccountClosureAcceptedResponse), 202, 36, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_closure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "List", "GET", "identity/me/data-requests", null,
+            "ListOwnDataRequests", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListOwnDataRequestsQuery), "LearnStackOperation:identity.data_request.list_own",
+            typeof(LearnStack.Api.Identity.OwnDataRequestPage), 200, null, new()),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "Get", "GET", "identity/me/data-requests", "{id}",
+            "GetOwnDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.GetOwnDataRequestQuery), "LearnStackOperation:identity.data_request.read_own",
+            typeof(LearnStack.Api.Identity.OwnDataRequestResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "Cancel", "POST", "identity/me/data-requests", "{id}/cancellations",
+            "CancelOwnDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelOwnDataRequestCommand), "LearnStackOperation:identity.data_request.cancel_own",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 26, new(OperationClass.Must, OperationType.Update, "identity.data_request.cancel", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "Revoke", "POST", "identity/me/data-requests", "{id}/artifact/revocations",
+            "RevokeOwnDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.RevokeOwnDataExportCommand), "LearnStackOperation:identity.data_request.revoke_own_export",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 28, new(OperationClass.Must, OperationType.Delete, "identity.data_export.revoke", typeof(LearnStack.Modules.Identity.Domain.DataExportArtifact))),
+        new("LearnStack.Api.Identity.OwnDataExportTicketsController", "MintTicket", "POST", "identity/me/data-requests", "{id}/artifact/tickets",
+            "MintOwnDataExportTicket", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.MintOwnDataExportTicketCommand), "LearnStackOperation:identity.data_request.mint_export_ticket",
+            typeof(LearnStack.Api.Identity.DataExportTicketResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_export.mint_ticket", typeof(LearnStack.Modules.Identity.Domain.DataExportTicket))),
+        new("LearnStack.Api.Identity.OwnDataExportChunksController", "ReadChunk", "POST", "identity/me/data-requests", "{id}/artifact/chunks",
+            "ReadOwnDataExportChunk", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ReadOwnDataExportChunkCommand), "LearnStackOperation:identity.data_request.read_export_chunk",
+            typeof(LearnStack.Api.Identity.DataExportChunkResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_export.read_chunk", typeof(LearnStack.Modules.Identity.Domain.DataExportTicket))),
+        new("LearnStack.Api.Identity.DataRequestsController", "Create", "POST", "identity/data-requests", "exports",
+            "CreateDataExportForSubject", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateDataExportForSubjectCommand), "LearnStackOperation:identity.data_request.create_export",
+            typeof(LearnStack.Api.Identity.DataRequestAcceptedResponse), 202, 25, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_export", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "CreateErasure", "POST", "identity/data-requests", "erasures",
+            "CreateDataErasureForSubject", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateDataErasureForSubjectCommand), "LearnStackOperation:identity.data_request.create_erasure",
+            typeof(LearnStack.Api.Identity.DataErasureAcceptedResponse), 202, 33, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_erasure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "List", "GET", "identity/data-requests", null,
+            "ListDataRequests", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListDataRequestsQuery), "LearnStackOperation:identity.data_request.list",
+            typeof(LearnStack.Api.Identity.DataRequestPage), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_request.list", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "Get", "GET", "identity/data-requests", "{id}",
+            "GetDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.GetDataRequestQuery), "LearnStackOperation:identity.data_request.read",
+            typeof(LearnStack.Api.Identity.DataRequestResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_request.read", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "Cancel", "POST", "identity/data-requests", "{id}/cancellations",
+            "CancelDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelDataRequestCommand), "LearnStackOperation:identity.data_request.cancel",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 27, new(OperationClass.Must, OperationType.Update, "identity.data_request.cancel", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "Revoke", "POST", "identity/data-requests", "{id}/artifact/revocations",
+            "RevokeDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.RevokeDataExportCommand), "LearnStackOperation:identity.data_request.revoke_export",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 29, new(OperationClass.Must, OperationType.Delete, "identity.data_export.revoke", typeof(LearnStack.Modules.Identity.Domain.DataExportArtifact))),
+        // ADR-0106 § 9: the retained own-scope native entry; every action sends the source's captured request.
+        new("LearnStack.Api.Identity.DataRequestEntryController", "Scopes", "GET", "identity/data-request-entry", "scopes",
+            "ListRetainedDataRequestScopes", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListRetainedDataRequestScopesQuery), "LearnStackOperation:identity.data_request.list_retained_scopes",
+            typeof(LearnStack.Api.Identity.RetainedDataRequestScopePageResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "Requests", "GET", "identity/data-request-entry", "requests",
+            "ListRetainedDataRequests", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListRetainedDataRequestsQuery), "LearnStackOperation:identity.data_request.list_retained",
+            typeof(LearnStack.Api.Identity.OwnDataRequestPage), 200, null, new()),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "CreateExport", "POST", "identity/data-request-entry", "exports",
+            "CreateRetainedDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataExportCommand), "LearnStackOperation:identity.data_request.create_retained_export",
+            typeof(LearnStack.Api.Identity.DataRequestAcceptedResponse), 202, 30, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_export", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "CreateErasure", "POST", "identity/data-request-entry", "erasures",
+            "CreateRetainedDataErasure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataErasureCommand), "LearnStackOperation:identity.data_request.create_retained_erasure",
+            typeof(LearnStack.Api.Identity.DataErasureAcceptedResponse), 202, 34, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_erasure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "CreateClosure", "POST", "identity/data-request-entry", "closures",
+            "CreateRetainedAccountClosure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedAccountClosureCommand), "LearnStackOperation:identity.data_request.create_retained_closure",
+            typeof(LearnStack.Api.Identity.AccountClosureAcceptedResponse), 202, 37, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_closure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "Cancel", "POST", "identity/data-request-entry", "cancellations",
+            "CancelRetainedDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelRetainedDataRequestCommand), "LearnStackOperation:identity.data_request.cancel_retained",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 31, new(OperationClass.Must, OperationType.Update, "identity.data_request.cancel", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "RevokeExport", "POST", "identity/data-request-entry", "revocations",
+            "RevokeRetainedDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.RevokeRetainedDataExportCommand), "LearnStackOperation:identity.data_request.revoke_retained_export",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 35, new(OperationClass.Must, OperationType.Delete, "identity.data_export.revoke", typeof(LearnStack.Modules.Identity.Domain.DataExportArtifact))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "MintTicket", "POST", "identity/data-request-entry", "tickets",
+            "MintRetainedDataExportTicket", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.MintRetainedDataExportTicketCommand), "LearnStackOperation:identity.data_request.mint_retained_export_ticket",
+            typeof(LearnStack.Api.Identity.DataExportTicketResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_export.mint_ticket", typeof(LearnStack.Modules.Identity.Domain.DataExportTicket))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "ReadChunk", "POST", "identity/data-request-entry", "chunks",
+            "ReadRetainedDataExportChunk", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ReadRetainedDataExportChunkCommand), "LearnStackOperation:identity.data_request.read_retained_export_chunk",
+            typeof(LearnStack.Api.Identity.DataExportChunkResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_export.read_chunk", typeof(LearnStack.Modules.Identity.Domain.DataExportTicket))),
         // ADR-0099: the protected federation operations hand off to the one runner, without Idempotency-Key.
         new("LearnStack.Api.Identity.FederationController", "Get", "GET", "identity/federation", null,
             "GetFederationConnection", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.GetFederationConnectionQuery), "LearnStackOperation:identity.federation.read",
@@ -305,9 +379,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         errors.Should().BeEmpty(
             "Fix: retain the exact ADR-0064/0076 reads and ADR-0078/0079 finite entry/administration union; all findings: {0}", string.Join("\n", errors));
         // The totals Standard 21 publishes for this rule; Violations binds the production surface to this literal census.
-        Endpoints.Should().HaveCount(72, "the census closes the surface at 72 MVC actions");
-        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(67,
-            "Standard 21 publishes 67 distinct IRequest roots for the 72 actions");
+        Endpoints.Should().HaveCount(96, "the census closes the surface at 96 MVC actions");
+        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(91,
+            "Standard 21 publishes 91 distinct IRequest roots for the 96 actions");
     });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls mutate the same production route census.</summary>
@@ -459,7 +533,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(46, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, and the federation commands share one handler class beside its two query handlers");
+        handlers.Should().HaveCount(70, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, the federation commands share one handler class beside its two query handlers, and each of the twenty-four data-request requests (fifteen live, nine retained-entry) has its own thin handler");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);
@@ -675,6 +749,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 foreach (var offender in AttachedFilterOffenders(type, action, map)) errors.Add(offender);
                 if (!(type.FullName == "LearnStack.Api.Tenancy.ConsentSubjectController"
                     ? ConsentSubjectHandoff(type, action, entry)
+                    : type.FullName == DataRequestEntryController
+                    ? DataRequestEntryHandoff(type, action, entry)
                     : type.FullName == "LearnStack.Api.Identity.InvitationEntryController"
                     ? InvitationEntryHandoff(type, action, entry)
                     : type.FullName == FederationController

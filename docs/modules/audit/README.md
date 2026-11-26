@@ -25,9 +25,10 @@ packet. Rows marked
 The **read** side — the query API of
 [§ Querying](../../architecture/31-audit-subsystem.md), its export job and its permission
 registry — lands with Identity in
-[Phase 03](../../roadmap/phase-03-identity-admin.md), and so does the GDPR redaction
-path, triggered by a user's erasure — `UserGdprDeletedIntegrationEventHandler` and each
-module's `IUserReferenceLocator`
+[Phase 03](../../roadmap/phase-03-identity-admin.md). The GDPR redaction path is
+delivered: an operator act on the platform scope with one Audit-owned executor behind
+`IAuditRedactor` and each module's `IUserReferenceLocator` declarations
+([ADR-0108](../../decisions/0108-privileged-audit-redaction.md))
 ([Audit Subsystem § 10](../../architecture/31-audit-subsystem.md)). Partitioning and the
 retention purge land in [Phase 11](../../roadmap/phase-11-production-hardening.md) against
 written triggers ([ADR-0035](../../decisions/0035-demand-gated-infrastructure.md)).
@@ -106,11 +107,11 @@ know before touching it.
   nothing else, which is what keeps that impossible. The **ports** those types implement
   live in `LearnStack.SharedKernel.Audit`, beside the value types every module's
   catalogue source names.
-- **The log's own retention or redaction.** Redaction is Phase 03's and the purge Phase
-  11's; both run as
-  `learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path, and
-  both are already bounded by what this packet's migration grants: a `DELETE`, and an
-  `UPDATE` restricted to six columns.
+- **The log's own retention or redaction.** Redaction is the privileged step of an
+  erasure and of a closure's Finalize, and the purge is Phase 11's; both run as
+  `learnstack_platform` through the audited platform scope, and both are bounded by
+  what this packet's migration grants: a `DELETE`, and an `UPDATE` restricted to six
+  columns. The redaction's one executor ships; the purge has no caller yet.
 - **Anything a reader would call a metric.** Counters, latencies and error rates are
   [ADR-0032](../../decisions/0032-exception-handling-logging-and-observability.md)'s,
   and an audit row is not a log line: it is a record a regulator reads and a tenant
@@ -413,6 +414,11 @@ audited request rather than by a reader.
 | In-transaction `INSERT` | < 1 ms | One parameterised statement on a connection that is already open and already has its tenant announced. It adds no round trip of its own. |
 | Standalone write | < 5 ms | Its own connection, its own `BEGIN`/`COMMIT`, and two `set_config` calls. Off the happy path — it runs for `denied`, for a rolled-back business write, and for the commit-in-doubt re-write. |
 | Read, tenant's own log, newest first | < 50 ms p95 | `ix_audit_log_tenant_id_timestamp` answers it as an index scan. The budget is Phase 03's to hold; it is here because the index that serves it ships now. |
+| Data-request selection, count and actor/entity counts (P03-10) | Bounded by the subject's own rows, under a 15 s statement budget | Unions of equality branches on `ix_audit_log_actor_user_id_timestamp` and `ix_audit_log_tenant_id_entity_type_entity_id_timestamp`. Measured at 1.9 million rows of one tenant: about 2 ms each, against 140–235 ms for the single `OR` predicate they replaced, whose parallel scan grows with the tenant. |
+| Data-request metadata count (P03-10) | Bounded by `MetadataScanWindow` (500,000 keyed rows) per branch of the reach | The causal-actor and affected-user references cannot be index conditions under the row policy (JSON operators are not leakproof), so each branch of the reach, the group's organization and the tenant-level rows, is a newest-first seek cut at the window, on `ix_audit_log_tenant_id_organization_id_person_reference` and `ix_audit_log_tenant_id_tenant_level_person_reference`; `audit_metadata_reference` is a lower bound past a window. Measured at 2.3 million rows, 2,000,000 of them keyed rows of one organization: about 1 ms for an organization with no keyed rows of its own, against 2.2–3.4 s (2,000,000 rows read and removed by the row policy) for the single tenant-keyed window it replaced; 1.2–1.6 s for the organization whose branch fills a window, as before; about 1 s for a tenant-level branch of 601,000 keyed rows, stopping at the window with no sort. |
+| Redaction selection (P03-10, [ADR-0108](../../decisions/0108-privileged-audit-redaction.md)) | One statement per batch of at most 100,000 of the tenant's rows or 64 MiB of decompressed payload in the reach, newest first, each under a 30 s statement budget; the act's time grows with the tenant's decompressed payload | The actor and entity branches are index-served (`ix_audit_log_actor_user_id_timestamp`; `ix_audit_log_tenant_id_entity_type_entity_id_timestamp` by a skip scan over the entity types). A payload or metadata reference has no index, so each batch is a range of the key `("timestamp", id)` along `ix_audit_log_tenant_id_timestamp`, whose payload columns are walked once for the identifiers and rewritten only when that filter keeps the row. A boundary statement ends the batch at the row cap or where the decompressed size of the payload columns of its rows in the reach reaches the byte budget, because the selection and the rewrite work in proportion to decompressed bytes, which a compressible document can make tens of times its stored size: an uncompressed value is sized by `pg_column_size` without detoasting, a compressed one is decompressed once to be measured, and a row outside the reach counts nothing. Measured on PostgreSQL 18.4 with 1 GB of shared buffers, before and after the budget counted decompressed bytes. At 1.5 million rows of one tenant (1.5 GB stored, 9.8 GB decompressed): 155 batches instead of 24, every statement at most 0.34 s; 12.1–12.9 s for a whole-tenant act instead of 7.1–8.5 s, 3.2 s for an organization group's instead of 1.3–1.5 s, 4.2–5.2 s for the tenant-wide group's instead of 2.7–3.3 s; the difference is the boundary's decompression. At 30,000 rows of 250 KB documents that compress to 3 KB (88 MB stored, 7.2 GB decompressed): 112 batches, every statement at most 0.04 s, 3.0–4.0 s for a whole-tenant act; counted by stored size, two batches of 3.7 GB each took up to 1.15 s per statement, unbounded on a slower host. At 10,000 documents of 2,000 keys (78 MB stored, 660 MB decompressed): 10 batches of at most 0.12 s instead of 2 of 0.9 s. At 150,000 rows each carrying 100 KiB of incompressible payload (14 GB stored, which is also its decompressed size, so its batches did not change): 230 batches of about 650 rows, every statement at most 2.0 s, 215–243 s for a whole-tenant act; batches of 100,000 rows put about 10 GB in the first statement, which ran past its 30 s budget on every attempt. JIT is off for these statements: with it a batch took 1.6–3.1 s and a whole-tenant act 41–42 s. The payload filter tests two spellings of every identifier, and a closure's tenant pass carries every Membership the person holds in the tenant, up to 256, so up to 514 spellings. Tested against the walked array, the filter's cost is the spellings times the strings: at 1.5 million rows such a pass took 76–80 s, every statement at most 0.70 s, against 12 s for a pass of two Memberships. From 128 spellings (`AuditRedactionExecutor.SetLookupFrom`) the filter looks each walked string up in the spellings as a hashed set instead, and the same pass took 21.6–23.2 s, every statement at most 0.20 s, on a host shared with other work. Over 300,000 rows the array test took 2.1 s at 6 spellings and 16.7 s at 514, and the set lookup 4.0–5.5 s at any count, its unnest paid on every row, so the two cross at about 110 spellings and a pass of fewer keeps the array test. |
+| Redaction sentinel pass (P03-10, a closure's Finalize, [ADR-0108](../../decisions/0108-privileged-audit-redaction.md) § 4) | The selection's batches over the platform sentinel tenant: one statement per batch of at most 100,000 rows, each under the 30 s statement budget, and no payload is sized; the pass's time grows with the sentinel tenant's rows, about one global creation row per person | No index serves `metadata ->> 'identity_subject_key'`, and none is added: each batch is a range of `ix_audit_log_tenant_id_timestamp` whose rows the subject key, the subject as actor and the subject's `User` as entity filter, and only the few rows naming the person are rewritten. Measured on PostgreSQL 18.4 with 1 GB of shared buffers at 1.53 million sentinel rows (1.5 million creation rows in the capture's shape and 30,000 operator rows, 2.9 GB of heap): 35 batches; each selection statement at most 81 ms (44,000 rows in 34 ms on that index); each boundary statement, which then sized the payload of every row of the batch, at most 0.14–2.0 s; 4.3–13.6 s for the pass, the spread coming from a host shared with other work. The sentinel selection walks no payload, so its boundary now sizes none (`@size_payload` is false) and the row cap alone ends a batch: re-measured on the same data and a shared host, 16 batches instead of 35, each boundary at most 0.53–0.93 s and each selection at most 0.13 s, 1.8–4.5 s for the pass against 2.1–5.7 s with the sizing, and 33 s with the sizing from a cache the tenant passes had just filled. No statement came near its budget. |
+| Redaction rewrite (P03-10) | At most 1,000 selected rows of one batch per statement | Each statement locks and rewrites its rows by primary key, touching only the six granted columns, and keeps the stored value of a payload column the redaction leaves equal, so an unchanged large payload is not recompressed and logged again: 277 rows in 31–35 ms, the re-run rewrote nothing in under 10 ms, no statement took more than 27 ms on the 14 GB tenant, and decompressed payload was rewritten at 17–165 MB a second. |
 
 Two budget-shaped facts that are not latency:
 
@@ -420,12 +426,15 @@ Two budget-shaped facts that are not latency:
   retention purge in this packet, deliberately — audit correctness cannot be added later
   and audit scale can, and the platform has no rows yet to scale
   ([ADR-0028's 2026-09-07 amendment](../../decisions/0028-audit-log-partition-management.md)).
-- **Four indexes, not five.** The canonical organization-scoped template carries an index
-  on `(tenant_id, organization_id)`; this table does not take it, because a fifth index on
-  a high-volume append-only table is a write cost paid on every row for a predicate arm
-  the shipped readers do not take. The reasoning is in
-  [Audit Subsystem § 7](../../architecture/31-audit-subsystem.md), and Phase 03's admin
-  API is where to revisit it against a measured plan.
+- **Seven indexes, still not the template's `(tenant_id, organization_id)`.** The
+  canonical organization-scoped template carries an index on
+  `(tenant_id, organization_id)`; this table does not take it, because it is a write
+  cost paid on every row for a predicate arm the shipped readers do not take. The
+  reasoning is in [Audit Subsystem § 7](../../architecture/31-audit-subsystem.md), and
+  Phase 03's admin API is where to revisit it against a measured plan. P03-10 added the
+  three data-request indexes measured above: the entity index takes an entry for every
+  row, and a row carrying a causal-actor or affected-user key takes one entry in one of
+  the two person-reference indexes, split by whether it has an organization.
 
 ## Risks and open questions
 
@@ -447,7 +456,7 @@ Two budget-shaped facts that are not latency:
   that seeds the row as the migration role rather than by any shipped caller.
 - **Retention is unowned until Phase 11.** The purge and the partition-management job
   sit behind the same trigger — measured `audit_log` growth. GDPR redaction is not on it:
-  it is triggered by an erasure and lands with Phase 03's erasure handler. The grants all
+  an erasure triggers it, and its executor ships with Phase 03's erasure. The grants all
   three need are already written, which is the part that could not be added later without
   a migration on a table nobody may rewrite.
 - **The read API's shape is Phase 03's to settle.** The four permission keys and the

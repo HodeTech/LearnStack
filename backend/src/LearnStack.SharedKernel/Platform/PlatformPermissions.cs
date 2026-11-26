@@ -52,11 +52,25 @@ public static class PlatformPermissions
     public static PermissionDefinition FederationAdmin { get; } =
         new(PermissionScope.Platform, "platform.federation.admin");
 
+    /// <summary>
+    /// Inspect the data requests that await an operator, are overdue or stuck, and the expired export artifacts not yet
+    /// purged (ADR-0107 § 8).
+    /// </summary>
+    public static PermissionDefinition DataRequestRead { get; } =
+        new(PermissionScope.Platform, "platform.data_request.read");
+
+    /// <summary>
+    /// Complete an erasure's privileged audit redaction and, in Step 3, begin and finalize a global account closure
+    /// (ADR-0107 § 8, ADR-0108 § 1).
+    /// </summary>
+    public static PermissionDefinition DataRequestWrite { get; } =
+        new(PermissionScope.Platform, "platform.data_request.write");
+
     /// <summary>Every registered Platform permission.</summary>
     public static IReadOnlyList<PermissionDefinition> All { get; } =
     [
         KillswitchWrite, TenantWrite, TenantBootstrapWrite, IdentityAuthorityAdmin, DeliveryRead, DeliveryWrite,
-        FederationRead, FederationAdmin,
+        FederationRead, FederationAdmin, DataRequestRead, DataRequestWrite,
     ];
 
     /// <summary>Finds a registered Platform permission by its key.</summary>

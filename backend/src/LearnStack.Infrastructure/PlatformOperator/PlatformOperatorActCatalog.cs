@@ -11,8 +11,9 @@ public sealed record PlatformOperatorAct(PlatformOperation Operation);
 /// The closed set of request types an operator act may run, each bound to its operation (ADR-0102 § 2).
 /// </summary>
 /// <remarks>
-/// Built once by the composition root from the five command types and never changed, so the source
-/// and the executor judge the same list and a request outside it is never captured.
+/// Built once by the composition root from the five onboarding command types and a closure's fan-out
+/// command, and never changed, so the source and the executor judge the same list and a request outside
+/// it is never captured.
 /// </remarks>
 public sealed class PlatformOperatorActCatalog
 {

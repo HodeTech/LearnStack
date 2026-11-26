@@ -234,6 +234,8 @@ public sealed partial class FederationAdapterConventionTests
     {
         [FetcherSource] = "the only tenant-URL fetcher: ADR-0099 § Bounded egress guards every address it dials",
         [AdapterSource] = "the federation admin client: the fixed tenant-realm issuer only (KeycloakFederationOptions)",
+        ["LearnStack.Infrastructure/Identity/AccountRemoval/KeycloakAccountRemoval.cs"] =
+            "the closure's account-removal client (ADR-0107 § 7): the fixed tenant-realm issuer only (KeycloakAccountRemovalOptions)",
         ["LearnStack.Infrastructure/Identity/ProviderEvents/KeycloakIdentityEventProvider.cs"] =
             "the provider event reader (ADR-0097): the fixed tenant-realm issuer only",
         ["LearnStack.Api/Authentication/TenantAuthenticationBackchannel.cs"] =

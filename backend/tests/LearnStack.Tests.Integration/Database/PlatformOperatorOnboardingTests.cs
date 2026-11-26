@@ -856,6 +856,12 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
     /// <summary>Counts the outcome label of every onboarding act counted while it is alive.</summary>
     private sealed class ActOutcomes : IDisposable
     {
+        private static readonly string[] Onboarding =
+        [
+            PlatformOperations.TenantProvision.AuditSlug, PlatformOperations.HostMap.AuditSlug, PlatformOperations.RoleInitialize.AuditSlug,
+            PlatformOperations.FirstAdminCreate.AuditSlug, PlatformOperations.AdminRecover.AuditSlug,
+        ];
+
         private readonly MeterListener _listener = new();
         private readonly Dictionary<string, int> _counts = [];
 
@@ -871,15 +877,19 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             };
             _listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
             {
+                // The meter is process-wide: a closure's fan-out acts another class runs at the same time are not this
+                // proof's, so only the onboarding acts are counted.
+                string? operation = null, outcome = null;
                 foreach (var tag in tags)
                 {
-                    if (tag is { Key: "outcome", Value: string outcome })
-                    {
-                        lock (_counts)
-                        {
-                            _counts[outcome] = _counts.GetValueOrDefault(outcome) + 1;
-                        }
-                    }
+                    if (tag is { Key: "operation", Value: string named }) operation = named;
+                    if (tag is { Key: "outcome", Value: string ended }) outcome = ended;
+                }
+
+                if (outcome is null || !Onboarding.Contains(operation)) return;
+                lock (_counts)
+                {
+                    _counts[outcome] = _counts.GetValueOrDefault(outcome) + 1;
                 }
             });
             _listener.Start();

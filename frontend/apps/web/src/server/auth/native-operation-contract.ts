@@ -125,7 +125,67 @@ export type NativeOperation =
         | 'resumeFederationOperation';
       version: string;
     }>
-  | RetainedConsentOperation;
+  | RetainedConsentOperation
+  | OwnDataRequestOperation
+  | GroupDataRequestOperation;
+/**
+ * ADR-0106 §§ 3, 6, 13: an administrator's data requests in the session context's group. The subject is named only
+ * by a Membership of that group; no ticket or chunk operation exists, because an administrator never receives a bundle.
+ */
+export type GroupDataRequestOperation =
+  | (Readonly<{ kind: 'listDataRequests' }> & Page)
+  | Readonly<{ kind: 'getDataRequest'; id: string }>
+  | Readonly<{
+      kind: 'createDataExportForSubject' | 'createDataErasureForSubject';
+      membershipId: string;
+      idempotencyKey: string;
+    }>
+  | (Readonly<{ kind: 'cancelDataRequest' | 'revokeDataExport'; id: string }> & Write);
+/**
+ * ADR-0106 § 9, ADR-0107 § 4: the person's own data requests in the live session's context group. The ticket of a
+ * chunk read is a sensitive cursor: it exists only between the download relay and this owner, never in a page or log.
+ */
+export type OwnDataRequestOperation =
+  | (Readonly<{ kind: 'listOwnDataRequests' }> & Page)
+  | Readonly<{
+      kind: 'createOwnDataExport' | 'createOwnDataErasure' | 'createOwnAccountClosure';
+      idempotencyKey: string;
+    }>
+  | (Readonly<{ kind: 'cancelOwnDataRequest' | 'revokeOwnDataExport'; id: string }> & Write)
+  | Readonly<{ kind: 'mintOwnDataExportTicket'; id: string }>
+  | Readonly<{ kind: 'readOwnDataExportChunk'; id: string; ticket: string; index: number }>;
+/** The closed retained-entry set (ADR-0106 § 9): discovery and the actions in one named group. */
+export type RetainedDataRequestOperation =
+  | (Readonly<{ kind: 'listRetainedDataRequestScopes' }> & Page)
+  | (Readonly<{ kind: 'listRetainedDataRequests'; group: string }> & Page)
+  | Readonly<{
+      kind:
+        | 'createRetainedDataExport'
+        | 'createRetainedDataErasure'
+        | 'createRetainedAccountClosure';
+      group: string;
+      idempotencyKey: string;
+    }>
+  | (Readonly<{
+      kind: 'cancelRetainedDataRequest' | 'revokeRetainedDataExport';
+      group: string;
+      id: string;
+    }> &
+      Write)
+  | Readonly<{ kind: 'mintRetainedDataExportTicket'; group: string; id: string }>
+  | Readonly<{
+      kind: 'readRetainedDataExportChunk';
+      group: string;
+      id: string;
+      ticket: string;
+      index: number;
+    }>;
+export type NativeRetainedDataRequestCaller = (
+  token: string,
+  binding: NativeBinding,
+  operation: RetainedDataRequestOperation,
+  signal: AbortSignal,
+) => Promise<NativeOperationResult>;
 export type RetainedConsentOperation =
   | (Readonly<{ kind: 'listOwnConsentScopes' }> & Page)
   | (Readonly<{ kind: 'listOwnConsentHistory'; membershipId: string }> & Page)

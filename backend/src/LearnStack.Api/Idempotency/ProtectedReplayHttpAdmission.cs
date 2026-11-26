@@ -7,6 +7,7 @@ using LearnStack.Api.Common;
 using LearnStack.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Identifiers;
@@ -44,8 +45,20 @@ internal static class ProtectedReplayHttpAdmission
             || context.UserId is not { } actor || !StronglyTypedId.IsAssigned(actor) || actor == UserId.SystemActor)
             return await operations().CheckHttpAsync(declared.RequestType, endpoint!, http.RequestAborted);
         ConsentSubjectSource? consent = null;
+        OwnDataRequestSubjectSource? dataRequest = null;
         AuthorizationCandidate? candidate = null;
-        if (descriptor.Operation == ProtectedAdministrationOperation.WithdrawOwnFieldConsent)
+        if (descriptor.IsRetainedDataRequest)
+        {
+            // ADR-0106 § 9: the retained entry is admitted by its own witness, never by an ordinary candidate.
+            dataRequest = http.Features.Get<OwnDataRequestSubjectSource>();
+            if (declared.Kind != OperationPolicyKind.OwnDataRequestEntry || context.Origin != TenantContextOrigin.HostAndOwnDataRequestScope
+                || dataRequest is null || dataRequest.Actor != actor || !dataRequest.MatchesScope(http, context.TenantId, context.OrganizationId)
+                || dataRequest.Request is not (CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand
+                    or CreateRetainedAccountClosureCommand or CancelRetainedDataRequestCommand or RevokeRetainedDataExportCommand)
+                || http.Features.Get<ConsentSubjectSource>() is not null)
+                return Failure("lockey_forbidden");
+        }
+        else if (descriptor.Operation == ProtectedAdministrationOperation.WithdrawOwnFieldConsent)
         {
             consent = http.Features.Get<ConsentSubjectSource>();
             if (declared.Kind != OperationPolicyKind.OwnConsentEntry || context.Origin != TenantContextOrigin.HostAndConsentSubjectScope
@@ -64,12 +77,13 @@ internal static class ProtectedReplayHttpAdmission
         // actual bytes here before fingerprinting, without consuming model input.
         if (!AdministrationHttpInput.SupportsJsonMedia(http.Request)) return Failure("lockey_validation_failed");
         if (consent is not null && !await consent.MatchesCapturedWithdrawalAsync(http)) return Failure("lockey_forbidden");
+        if (dataRequest is not null && !await dataRequest.MatchesCapturedMutationAsync(http)) return Failure("lockey_forbidden");
         await AdministrationHttpInput.ReadBodyBytesAsync(http);
         string fingerprint;
         try { fingerprint = await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, expected, http.RequestAborted); }
         catch (Exception failure) when (failure is CustomFieldFingerprintUnavailableException or IdempotencyStoreException)
         { return Failure("lockey_dependency_unavailable"); }
-        var binding = new RequestBinding(http, endpoint!, classifier, declared, descriptor, context, candidate, consent, key, fingerprint, expected);
+        var binding = new RequestBinding(http, endpoint!, classifier, declared, descriptor, context, candidate, consent, dataRequest, key, fingerprint, expected);
         IdempotentResponse? stored;
         try { stored = await store.ReadCompletedAsync(context.TenantId, key, fingerprint, http.RequestAborted); }
         catch (IdempotencyStoreException) { return Failure("lockey_dependency_unavailable"); }
@@ -83,6 +97,9 @@ internal static class ProtectedReplayHttpAdmission
         if (consent is not null && frozen is not null
             && (frozen.ReplayTarget is not { } target || !consent.SelectWithdrawalReceipt(http, target.Id)))
             return Failure("lockey_forbidden");
+        if (dataRequest is not null && frozen is not null
+            && (frozen.ReplayTarget is not { } retained || !dataRequest.SelectMutationReceipt(http, retained.Id)))
+            return Failure("lockey_forbidden");
         var result = await operations().CheckHttpAsync(requestType, endpoint!, http.RequestAborted);
         if (result.IsFailure) return result;
         if (!binding.Matches(http, context, descriptor, key, fingerprint, expected)) return Failure("lockey_forbidden");
@@ -95,19 +112,23 @@ internal static class ProtectedReplayHttpAdmission
 
         async Task<Result<None>> ConsentInputMatchesAsync()
         {
-            if (consent is null) return Result.Ok(None.Value);
-            if (!await consent.MatchesCapturedWithdrawalAsync(http) || !IdempotencyFilter.TryReadKey(http, out var currentKey)
+            if (consent is null && dataRequest is null) return Result.Ok(None.Value);
+            if (!await CapturedInputMatchesAsync() || !IdempotencyFilter.TryReadKey(http, out var currentKey)
                 || currentKey != key) return Failure("lockey_forbidden");
             try
             {
                 var currentFingerprint = await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, expected, http.RequestAborted);
-                return fingerprint == currentFingerprint && await consent.MatchesCapturedWithdrawalAsync(http)
+                return fingerprint == currentFingerprint && await CapturedInputMatchesAsync()
                     && IdempotencyFilter.TryReadKey(http, out currentKey) && currentKey == key
                     ? Result.Ok(None.Value) : Failure("lockey_forbidden");
             }
             catch (Exception failure) when (failure is CustomFieldFingerprintUnavailableException or IdempotencyStoreException)
             { return Failure("lockey_dependency_unavailable"); }
         }
+
+        // The captured input outlives a replay's receipt selection, so the reread compares the original mutation either way.
+        Task<bool> CapturedInputMatchesAsync() => consent is not null
+            ? consent.MatchesCapturedWithdrawalAsync(http) : dataRequest!.MatchesCapturedMutationAsync(http);
     }
 
     internal static ProtectedHttpAdmission Consume(HttpContext http, ITenantContext context,
@@ -139,6 +160,15 @@ internal static class ProtectedReplayHttpAdmission
             or ProtectedAdministrationOperation.DiscardCustomFieldDraft => typeof(ReadCustomFieldDefinitionReceiptQuery),
         ProtectedAdministrationOperation.GrantOwnFieldConsent => typeof(ReadOwnGrantedFieldConsentReceiptQuery),
         ProtectedAdministrationOperation.WithdrawOwnFieldConsent => typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
+        ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CreateOwnDataErasure
+            or ProtectedAdministrationOperation.CreateOwnAccountClosure or ProtectedAdministrationOperation.CancelOwnDataRequest
+            or ProtectedAdministrationOperation.RevokeOwnDataExport => typeof(ReadOwnDataRequestReceiptQuery),
+        ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CreateDataErasureForSubject
+            or ProtectedAdministrationOperation.CancelDataRequest
+            or ProtectedAdministrationOperation.RevokeDataExport => typeof(ReadDataRequestReceiptQuery),
+        ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CreateRetainedDataErasure
+            or ProtectedAdministrationOperation.CreateRetainedAccountClosure or ProtectedAdministrationOperation.CancelRetainedDataRequest
+            or ProtectedAdministrationOperation.RevokeRetainedDataExport => typeof(ReadRetainedDataRequestReceiptQuery),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -159,7 +189,8 @@ internal static class ProtectedReplayHttpAdmission
 
     private sealed class RequestBinding(HttpContext http, Endpoint endpoint, OperationHttpClassifier classifier,
         OperationPolicy policy, ProtectedAdministrationDescriptor descriptor, ITenantContext context,
-        AuthorizationCandidate? candidate, ConsentSubjectSource? consent, string key, string fingerprint, long? expected)
+        AuthorizationCandidate? candidate, ConsentSubjectSource? consent, OwnDataRequestSubjectSource? dataRequest, string key,
+        string fingerprint, long? expected)
     {
         private readonly TenantId _tenant = context.TenantId;
         private readonly OrganizationId? _organization = context.OrganizationId;
@@ -172,7 +203,9 @@ internal static class ProtectedReplayHttpAdmission
             && ReferenceEquals(context, scope) && !current.RequestAborted.IsCancellationRequested
             && scope.IsResolved && scope.TenantId == _tenant && scope.OrganizationId == _organization
             && scope.UserId == _actor && scope.Origin == _origin
-            && (consent is not null ? candidate is null && consent.Actor == _actor && consent.MatchesScope(current, _tenant, _organization)
+            && (dataRequest is not null ? candidate is null && consent is null && dataRequest.Actor == _actor
+                    && dataRequest.MatchesScope(current, _tenant, _organization)
+                : consent is not null ? candidate is null && consent.Actor == _actor && consent.MatchesScope(current, _tenant, _organization)
                 : candidate is { IsActive: true } && candidate.Actor == _actor
                     && candidate.TenantId == _tenant && candidate.OrganizationId == _organization)
             && descriptor == operation && key == currentKey && fingerprint == currentFingerprint && expected == currentExpected

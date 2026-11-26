@@ -26,8 +26,7 @@ observation below uses that pipeline under
 [ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
 The query API and export job remain in
 [Phase 03](../../roadmap/phase-03-identity-admin.md), the override editor in
-[Phase 06](../../roadmap/phase-06-renderer-admin-studio.md), redaction with Phase 03's
-erasure handler, and retention in
+[Phase 06](../../roadmap/phase-06-renderer-admin-studio.md), and retention in
 [Phase 11](../../roadmap/phase-11-production-hardening.md). Those future rows carry
 `(planned)`, a claim `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`
 re-checks on every run: a `(planned)` row whose command has since shipped fails.
@@ -46,8 +45,10 @@ matches `audit.event.read` in [permissions.md](permissions.md).
 
 Two resource segments have no permission key to agree with, and keep their own names for
 the reason `tenancy.tenant_assertion.*` keeps its prefix: the key that gates them is
-Platform-scope, does not share the `audit.` module segment, and has no name yet —
-[permissions.md](permissions.md) records who names it.
+Platform-scope and does not share the `audit.` module segment.
+`audit.redaction.apply` is gated by `platform.data_request.write`;
+`audit.purge.apply` has no key yet, and [permissions.md](permissions.md) records who
+names it.
 `audit.redaction.apply` is the spelling
 [Audit Subsystem § 10](../../architecture/31-audit-subsystem.md) already writes into the
 draft it shows, and `audit.purge.apply` is its twin — one resource per act, one verb
@@ -55,13 +56,13 @@ each, rather than two more verbs on `event`, which is the resource a tenant read
 
 | Resource | Operation | Class | Notes |
 |---|---|---|---|
-| `provider_event` | `audit.provider_event.observe` | **MUST** (`security-event`) | `ProviderEventObservationHandler` consumes the required transport-owned inbox. Closed typed evidence records a retained account-history observation, with SystemActor separate from the affected User and processing outcome/time separate from provider outcome/time. No tenant-login or human-G13 proof is inferred. |
+| `provider_event` | `audit.provider_event.observe` | **MUST** (`security-event`) | `ProviderEventObservationHandler` consumes the required transport-owned inbox. Closed typed evidence records a retained account-history observation, with SystemActor separate from the affected User and processing outcome/time separate from provider outcome/time. No tenant-login or human-G13 proof is inferred. A delivery whose affected person's User is no longer Active, as the Identity fact reader judges it under that person's User fence ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7, 9), withholds the observation: the intent is withdrawn before anything is written, so the delivery completes as a recorded no-op with its inbox row and no row naming a closing or closed person; only this subscriber withholds, with the evidence it alone mints. |
 | `event` | `audit.event.read` `(planned)` | **SHOULD** (`read-sensitive`) | Someone read a tenant's audit trail. SHOULD rather than MUST because a tenant admin reading their own log is ordinary administration, and a MUST here would make every page of the audit screen write a row into the table it is paging — which is the one place a self-referential write compounds. The tenant may narrow it; the platform-scope read below cannot be narrowed |
 | `event_export` | `audit.event_export.write` `(planned)` | **MUST** | An export produces a file containing the log, outside every policy in this schema and outliving the request that asked for it. The row records who asked and for what range; the file's own retention is [Phase 03](../../roadmap/phase-03-identity-admin.md)'s to settle |
 | `event_export` | `audit.event_export.read` `(planned)` | **MUST** | Collecting the file is a separate act from asking for it, often by a different principal and always at a different time. Two grants in [permissions.md](permissions.md), two rows here |
 | `config` | `audit.config.write` `(planned)` | **MUST** | A tenant narrowed its own SHOULD/MAY coverage. Recording it is what keeps the narrowing itself visible — an override that could be set without a trace would be the first move of anyone reducing what the log will show. The floor holds regardless: `ClassifyAsync` re-applies the catalogue's MUST after the override ([ADR-0033](../../decisions/0033-audit-durability-model.md)) |
 | `config` | `audit.config.delete` `(planned)` | **MUST** | The override removed, restoring baseline coverage. Recorded for the same reason and with the same weight as setting it: a reader of the log must be able to reconstruct what coverage was in force at any moment |
-| `redaction` | `audit.redaction.apply` `(planned)` `(off-path)` | **MUST** (`security-event`) | The GDPR erasure path of [Audit Subsystem § 10](../../architecture/31-audit-subsystem.md), restricted by the column grant to `actor_email`, `ip_address`, `user_agent`, `before_state`, `after_state`, `changes`. `actor_user_id` is deliberately never redacted — it remains a pseudonymous, potentially linkable identifier. Phase 03's bounded first-writer decision must address surviving references before claiming complete anonymisation. `(off-path)`: it runs as `learnstack_platform` inside `EnterPlatformAdminScope(reason)`, so there is no request type to key a catalogue entry on |
+| `redaction` | `audit.redaction.apply` `(off-path)` | **MUST** (`security-event`) | The privileged half of an erasure ([ADR-0108](../../decisions/0108-privileged-audit-redaction.md)): an operator act in the platform scope, `complete_erasure` of [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8, under the Platform key `platform.data_request.write`. One Audit-owned executor redacts the subject's `ip_address`, `user_agent` and `actor_email`, and the string values at the references each module's locator declares in `before_state`, `after_state` and `changes`, in the same platform transaction that completes the request and writes this row. The row names the request's real tenant, carries no actor and holds a closed report of the rows redacted per column and the retained references per kind, never a person identifier. `actor_user_id`, `entity_id`, the causation and correlation identifiers and `metadata` are deliberately never redacted: they stay a pseudonymous, linkable identifier and the report says so. A global account closure's Finalize runs the same executor over every participant tenant and the platform sentinel tenant, where it selects the person's global creation rows by the subject key in `metadata`, and records it on its own intent row, `platform.closure.finalize_attempt` in [Tenancy's matrix](../tenancy/audit.md), not on this slug. `(off-path)`: the platform scope is a service, so there is no request type to key a catalogue entry on, and the slug names the Audit module because the operator result write refuses `identity` |
 | `purge` | `audit.purge.apply` `(planned)` `(off-path)` | **MUST** (`security-event`) | Retention removed rows. One row per purge run rather than per deleted row, carrying the range and the count — a per-row record of a per-row deletion is a log that grows faster than the purge shrinks it. It stays a row-level `DELETE` after [Phase 11](../../roadmap/phase-11-production-hardening.md) partitioning — one monthly partition holds many tenants and retention classes — and dropping a whole partition past the platform's maximum retention is [ADR-0028](../../decisions/0028-audit-log-partition-management.md)'s separate partition-management job. `(off-path)` for the same reason as redaction |
 
 ## What is deliberately not here
@@ -110,9 +111,9 @@ when it does.
 Each row takes its OperationType/domain's target from
 [Standard 18 Retention](../../standards/18-audit-coverage.md#retention), not a blanket
 MUST-class period. Automatic purge and retention overrides remain unimplemented
-until Phase 11, so rows can outlive their targets. The planned purge/redaction
-security events preserve evidence of the maintenance act; retention machinery
-must apply the canonical policy when admitted.
+until Phase 11, so rows can outlive their targets. The redaction's result row and the
+planned purge's security event preserve evidence of the maintenance act; retention
+machinery must apply the canonical policy when admitted.
 
 <a id="accepted-authorization-evidence--runtime-pending"></a>
 

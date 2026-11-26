@@ -24,7 +24,8 @@ internal sealed class NativeSessionSourceFeature
     internal NativeSessionSourceFeature(HttpContext request, HostClassification host,
         VerifiedProviderSubject subject, SubjectAdmissionDecision decision,
         TenantSubjectAdmissionProvenance provenance, TenantId? tenant, OrganizationId? organization,
-        GlobalSelfOperation? operation, EffectiveHostAccessor hosts, NativeSessionSourcePolicy policy, IClock clock, InvitationEntryOperation? invitationOperation = null, ConsentSubjectOperation? consentOperation = null)
+        GlobalSelfOperation? operation, EffectiveHostAccessor hosts, NativeSessionSourcePolicy policy, IClock clock, InvitationEntryOperation? invitationOperation = null, ConsentSubjectOperation? consentOperation = null,
+        OwnDataRequestOperation? dataRequestOperation = null)
     {
         _request = request;
         _host = host;
@@ -43,6 +44,7 @@ internal sealed class NativeSessionSourceFeature
         GlobalOperation = operation;
         InvitationOperation = invitationOperation;
         ConsentOperation = consentOperation;
+        DataRequestOperation = dataRequestOperation;
     }
 
     internal TenantId? Tenant { get; }
@@ -50,6 +52,7 @@ internal sealed class NativeSessionSourceFeature
     internal GlobalSelfOperation? GlobalOperation { get; }
     internal InvitationEntryOperation? InvitationOperation { get; }
     internal ConsentSubjectOperation? ConsentOperation { get; }
+    internal OwnDataRequestOperation? DataRequestOperation { get; }
 
     internal bool IsCurrent(HttpContext request) =>
         ReferenceEquals(_request, request) && !request.RequestAborted.IsCancellationRequested
@@ -71,7 +74,9 @@ internal sealed class NativeSessionSourceFeature
         && ReferenceEquals(InvitationEntryOperation.ForPath(request.Request.Path), InvitationOperation)
         && (InvitationOperation is null || InvitationOperation.Matches(request))
         && ReferenceEquals(ConsentSubjectOperation.ForPath(request.Request.Path), ConsentOperation)
-        && (ConsentOperation is null || ConsentOperation.Matches(request));
+        && (ConsentOperation is null || ConsentOperation.Matches(request))
+        && ReferenceEquals(OwnDataRequestOperation.ForPath(request.Request.Path), DataRequestOperation)
+        && (DataRequestOperation is null || DataRequestOperation.Matches(request));
 
     public override string ToString() => nameof(NativeSessionSourceFeature);
 

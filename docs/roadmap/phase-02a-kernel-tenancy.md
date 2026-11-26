@@ -396,7 +396,8 @@ appears in no document and no source file; the canonical template writes
 `actor_user_id uuid NULL` with none either. The absence is deliberate:
 [31-audit-subsystem.md](../architecture/31-audit-subsystem.md) depends on the
 erased actor becoming an orphan surrogate key, which any `ON DELETE` action would
-make unreachable. See
+make unreachable. (Corrected 2026-11-22 by [ADR-0038 Amendment 5](../decisions/0038-cross-cutting-port-and-event-contracts.md):
+the retained identifier is pseudonymous and stays linkable, not an orphan.) See
 [ADR-0038 Amendment 1](../decisions/0038-cross-cutting-port-and-event-contracts.md).
 `users` is created by the first Identity migration in
 [Phase 03](phase-03-identity-admin.md), which owns the table. This packet ships

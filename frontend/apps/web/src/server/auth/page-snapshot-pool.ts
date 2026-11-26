@@ -2,6 +2,7 @@ import type {
   NativeEntrySnapshot,
   NativePageSnapshot,
   NativeConsentSnapshot,
+  NativeDataRequestSnapshot,
 } from './page-contract.js';
 import type { NativePageLease } from './page-snapshot-contract.js';
 
@@ -178,7 +179,13 @@ export function createPageSnapshotPool() {
           return unavailable();
         }
       };
-      const publish = <T extends NativePageSnapshot | NativeEntrySnapshot | NativeConsentSnapshot>(
+      const publish = <
+        T extends
+          | NativePageSnapshot
+          | NativeEntrySnapshot
+          | NativeConsentSnapshot
+          | NativeDataRequestSnapshot,
+      >(
         value: T,
       ): T => {
         response.assertCurrent();
@@ -243,6 +250,9 @@ export function createPageSnapshotPool() {
           return publish(entry);
         },
         publishConsent(value: NativeConsentSnapshot) {
+          return publish(value);
+        },
+        publishDataRequest(value: NativeDataRequestSnapshot) {
           return publish(value);
         },
         abort,

@@ -1,3 +1,4 @@
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using FluentAssertions;
 using LearnStack.Api.Idempotency;
 using LearnStack.Application.Authorization;
@@ -37,6 +38,7 @@ public sealed partial class IdempotencyConventionTests
         typeof(ReadRoleReceiptQuery), typeof(ReadOrganizationReceiptQuery), typeof(ReadDefaultOrganizationReceiptQuery),
         typeof(ReadInvitationReceiptQuery), typeof(ReadInvitationPolicyReceiptQuery), typeof(ReadCustomFieldDefinitionReceiptQuery),
         typeof(ReadOwnGrantedFieldConsentReceiptQuery), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
+        typeof(ReadOwnDataRequestReceiptQuery), typeof(ReadDataRequestReceiptQuery), typeof(ReadRetainedDataRequestReceiptQuery),
     ];
 
     [Fact]
@@ -49,6 +51,8 @@ public sealed partial class IdempotencyConventionTests
         {
             catalog.TryGet(receipt, out var policy).Should().BeTrue("Fix: classify every receipt read explicitly");
             policy.Kind.Should().Be(receipt == typeof(ReadOwnWithdrawnFieldConsentReceiptQuery) ? OperationPolicyKind.OwnConsentEntry
+                : receipt == typeof(ReadOwnDataRequestReceiptQuery) ? OperationPolicyKind.OwnDataRequest
+                : receipt == typeof(ReadRetainedDataRequestReceiptQuery) ? OperationPolicyKind.OwnDataRequestEntry
                 : receipt == typeof(ReadOwnMembershipProfileReceiptQuery) || receipt == typeof(ReadInvitationPolicyReceiptQuery)
                     || receipt == typeof(ReadOwnGrantedFieldConsentReceiptQuery) ? OperationPolicyKind.OwnMembershipRead : OperationPolicyKind.Protected);
             policy.RequiresOrglessWrite.Should().BeFalse("disclosure is not the original mutation's eligibility");
@@ -194,6 +198,11 @@ public sealed partial class IdempotencyConventionTests
             && instruction.Operand is TypeReference target && target.FullName == typeof(ReadOwnWithdrawnFieldConsentReceiptQuery).FullName);
         if (captured) expected.Remove(typeof(ReadOwnWithdrawnFieldConsentReceiptQuery).FullName!);
         else constructions = [.. constructions, "missing captured withdrawal receipt"];
+        // ADR-0106 § 9: so does the retained own-scope entry, whose receipt read is its own witness's captured query.
+        var retained = method.Body.Instructions.Any(instruction => instruction.OpCode == OpCodes.Isinst
+            && instruction.Operand is TypeReference target && target.FullName == typeof(ReadRetainedDataRequestReceiptQuery).FullName);
+        if (retained) expected.Remove(typeof(ReadRetainedDataRequestReceiptQuery).FullName!);
+        else constructions = [.. constructions, "missing captured retained data-request receipt"];
         return expected.Except(constructions, StringComparer.Ordinal)
             .Concat(constructions.Except(expected, StringComparer.Ordinal))
             .Concat(constructions.GroupBy(name => name, StringComparer.Ordinal).Where(group => group.Count() != 1).Select(group => group.Key))
@@ -225,6 +234,20 @@ public sealed partial class IdempotencyConventionTests
         [ProtectedAdministrationOperation.SetOwnCustomFields] = typeof(ReadOwnMembershipProfileReceiptQuery),
         [ProtectedAdministrationOperation.GrantOwnFieldConsent] = typeof(ReadOwnGrantedFieldConsentReceiptQuery),
         [ProtectedAdministrationOperation.WithdrawOwnFieldConsent] = typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
+        [ProtectedAdministrationOperation.CreateOwnDataExport] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CancelOwnDataRequest] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.RevokeOwnDataExport] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateDataExportForSubject] = typeof(ReadDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CancelDataRequest] = typeof(ReadDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.RevokeDataExport] = typeof(ReadDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateRetainedDataExport] = typeof(ReadRetainedDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CancelRetainedDataRequest] = typeof(ReadRetainedDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateOwnDataErasure] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateDataErasureForSubject] = typeof(ReadDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateRetainedDataErasure] = typeof(ReadRetainedDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.RevokeRetainedDataExport] = typeof(ReadRetainedDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateOwnAccountClosure] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateRetainedAccountClosure] = typeof(ReadRetainedDataRequestReceiptQuery),
     };
 
     private static string[] AdmissionOffenders(ModuleDefinition[] modules)
@@ -375,7 +398,14 @@ public sealed partial class IdempotencyConventionTests
         (AdmissionFile, "ReferenceEquals(http, current) && ReferenceEquals(endpoint, current.GetEndpoint()) && ReferenceEquals(context, scope) && !current.RequestAborted.IsCancellationRequested"),
         (AdmissionFile, "scope.IsResolved && scope.TenantId == _tenant && scope.OrganizationId == _organization && scope.UserId == _actor && scope.Origin == _origin"),
         (AdmissionFile, "consent is not null ? candidate is null && consent.Actor == _actor && consent.MatchesScope(current, _tenant, _organization) : candidate is { IsActive: true } && candidate.Actor == _actor && candidate.TenantId == _tenant && candidate.OrganizationId == _organization"),
-        (AdmissionFile, "fingerprint == currentFingerprint && await consent.MatchesCapturedWithdrawalAsync(http) && IdempotencyFilter.TryReadKey(http, out currentKey) && currentKey == key"),
+        (AdmissionFile, "fingerprint == currentFingerprint && await CapturedInputMatchesAsync() && IdempotencyFilter.TryReadKey(http, out currentKey) && currentKey == key"),
+        (AdmissionFile, "Task<bool> CapturedInputMatchesAsync() => consent is not null ? consent.MatchesCapturedWithdrawalAsync(http) : dataRequest!.MatchesCapturedMutationAsync(http);"),
+        // ADR-0106 § 9: the retained entry is admitted by its own witness and keeps its captured mutation and scope.
+        (AdmissionFile, "if (declared.Kind != OperationPolicyKind.OwnDataRequestEntry || context.Origin != TenantContextOrigin.HostAndOwnDataRequestScope || dataRequest is null || dataRequest.Actor != actor || !dataRequest.MatchesScope(http, context.TenantId, context.OrganizationId)"),
+        (AdmissionFile, "if (dataRequest is not null && !await dataRequest.MatchesCapturedMutationAsync(http)) return Failure(\"lockey_forbidden\");"),
+        (AdmissionFile, "if (dataRequest is not null && frozen is not null && (frozen.ReplayTarget is not { } retained || !dataRequest.SelectMutationReceipt(http, retained.Id))) return Failure(\"lockey_forbidden\");"),
+        (AdmissionFile, "dataRequest is not null ? candidate is null && consent is null && dataRequest.Actor == _actor && dataRequest.MatchesScope(current, _tenant, _organization)"),
+        (FilterFile, "if (_descriptor.Operation == ProtectedAdministrationOperation.WithdrawOwnFieldConsent || _descriptor.IsRetainedDataRequest) { context.Result = Problem(\"lockey_request_in_progress\"); return; }"),
         (AdmissionFile, "candidate.Actor == _actor && candidate.TenantId == _tenant && candidate.OrganizationId == _organization"),
         (AdmissionFile, "descriptor == operation && key == currentKey && fingerprint == currentFingerprint && expected == currentExpected"),
         (AdmissionFile, "classifier.Classify(endpoint, out var currentPolicy) == HttpOperationClassification.Application && ReferenceEquals(policy, currentPolicy)"),

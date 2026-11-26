@@ -591,6 +591,10 @@ export async function prepareBffProof({
     'native-invitation-client',
     'native-invitation-http',
     'native-consent-http',
+    'native-data-request-http',
+    'data-request-copy',
+    'data-request-html',
+    'data-export-download',
     'native-federation-client',
     'consent-response-contract',
     'custom-field-forms',
@@ -622,6 +626,7 @@ export async function prepareBffProof({
       join(directory, 'invitation.json'),
     );
     cpSync(join(source, 'src/i18n/messages', locale, 'auth.json'), join(directory, 'auth.json'));
+    cpSync(join(source, 'src/i18n/messages', locale, 'data.json'), join(directory, 'data.json'));
   }
   if (mutation === 'activity') {
     const path = join(app, 'src/server/auth/request-runtime.ts');

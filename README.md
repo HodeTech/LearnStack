@@ -76,7 +76,7 @@ for identity, membership and authorization work; the
 | Area | Delivered now | Next milestone |
 |---|---|---|
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation, plus bounded organization, default, locale and setting administration | Full organization and settings editors in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
-| **Identity** | Global User binding, contextual Membership/Profile/Role foundations, live scoped authorization, bounded member directory and trusted denial evidence, protected Studio membership and Role administration, native new-user entry and scope switching, verified invitations with automatic email, revision-pinned Membership custom values with personal consent, authenticated provider-event ingress with a deduplicated tenant Audit mirror, back-channel session revocation, and confined tenant SAML/OIDC federation | Platform authority, operational recovery and DSAR in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
+| **Identity** | Global User binding, contextual Membership/Profile/Role foundations, live scoped authorization, bounded member directory and trusted denial evidence, protected Studio membership and Role administration, native new-user entry and scope switching, verified invitations with automatic email, revision-pinned Membership custom values with personal consent, authenticated provider-event ingress with a deduplicated tenant Audit mirror, back-channel session revocation, confined tenant SAML/OIDC federation, an admitted Platform operator gate with a killswitch writer, production tenant onboarding, a controlled issuer rebind, fenced operator recovery of asynchronous work, and operator steps for the federation brokers a tenant left behind | DSAR, export and erasure in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, finite Membership field definition authoring, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
@@ -138,11 +138,12 @@ ordinary authoring pipeline and verifies completed acts before skipping them on 
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 Both combined entries then await the same bounded development-realm reconciler.
 Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET`,
-`KEYCLOAK_FEDERATION_ADMIN_SECRET` (with the identical `Federation__ClientSecret`)
+`KEYCLOAK_FEDERATION_ADMIN_SECRET` (with the identical `Federation__ClientSecret`),
+`KEYCLOAK_ACCOUNT_REMOVAL_SECRET` (with the identical `AccountRemoval__ClientSecret`)
 and the stable authority/issuer pair described in the realm guide; existing
 passwords/MFA and provider IDs are preserved. Prepare these secrets before the
 first `make dev` import, and retain them across reruns; `make dev` does not start
-without the federation admin secret. Older files also need
+without the federation admin or account removal secrets. Older files also need
 explicit private permissions after verifying their ownership/type; Makefile
 creation does not repair existing files. The
 [realm guide](infra/keycloak/README.md#secret-continuity-and-recovery) owns setup,
@@ -151,7 +152,10 @@ refusal, safe secret recovery and qualification details.
 API startup also requires the fixed
 [invitation SMTP settings and encryption key ring](docs/modules/identity/providers.md#configuration-surface-and-source-bindings).
 Prepare these operator-owned values before starting the API or demo; an older
-private file is not silently supplied with a replacement encryption key.
+private file is not silently supplied with a replacement encryption key. The API
+also refuses to start without the data export key ring `DataExport__KeyRing` (same
+JSON shape; `DataExport__MaxBytes` is optional), whose
+[runbook](docs/runbooks/data-export.md) covers rotation and key loss.
 Keycloak's separate
 [account-verification sender](infra/keycloak/README.md#invitation-email-and-recipient-verification)
 must also work for the complete new-recipient journey.

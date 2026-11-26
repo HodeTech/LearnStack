@@ -3,6 +3,7 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 
@@ -45,8 +46,14 @@ public sealed class OperatorActAdmission
 /// owner, so a handler can be called only from that pipeline: the invocation is the live one for this
 /// exact request object and context, its policy is finite and names the operator source alone, its
 /// descriptor still matches, the context is the ambient one the executor installed for the tenant the
-/// act names (no organization, no host scope, no user), and the transaction is the single ordinary
-/// read-write owner that announced exactly that tenant.
+/// act names (no host scope, no user, and no organization unless the act is a closure's fan-out), and the
+/// transaction is the single ordinary read-write owner that announced exactly that tenant and organization.
+/// </para>
+/// <para>
+/// <b>The one organization.</b> ADR-0102 Amendment 2 extends the confined announcement to a group's
+/// organization for <c>fan_out_closure</c> alone: a context that carries an organization is admitted only
+/// when the operator descriptor was minted for that operation, by reference, and the announcement names the
+/// same organization. Every onboarding act still runs with none.
 /// </para>
 /// <para>
 /// It then takes the ordered locks of the plan before any read the act decides on, and
@@ -77,7 +84,8 @@ public sealed class OperatorActGuard(
     public Result<None> RequireLiveAct(object request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return context.IsResolved && HasInvocation(execution.CurrentInvocation, request) && HasOwner(context.TenantId)
+        var invocation = execution.CurrentInvocation;
+        return context.IsResolved && HasInvocation(invocation, request) && HasOwner(invocation!, context.TenantId)
             ? Result.Ok(None.Value)
             : RefusedNone();
     }
@@ -89,7 +97,7 @@ public sealed class OperatorActGuard(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(plan);
         var invocation = execution.CurrentInvocation;
-        if (!HasInvocation(invocation, request) || !HasOwner(plan.TenantId))
+        if (!HasInvocation(invocation, request) || !HasOwner(invocation!, plan.TenantId))
         {
             return Refused();
         }
@@ -115,7 +123,7 @@ public sealed class OperatorActGuard(
     {
         ArgumentNullException.ThrowIfNull(admission);
         if (!ReferenceEquals(execution.CurrentInvocation, admission.Invocation)
-            || !HasInvocation(admission.Invocation, admission.Request) || !HasOwner(admission.TenantId))
+            || !HasInvocation(admission.Invocation, admission.Request) || !HasOwner(admission.Invocation, admission.TenantId))
         {
             return RefusedNone();
         }
@@ -139,12 +147,21 @@ public sealed class OperatorActGuard(
         && invocation.TrustedSource is { SourceKind: AuthorizationSourceKind.PlatformOperator } source
         && source.Matches(request.GetType(), context);
 
-    private bool HasOwner(TenantId tenantId) => context.IsResolved && context.TenantId == tenantId
-        && context.OrganizationId is null && context.HostScope is null && context.UserId is null
+    private bool HasOwner(OperationInvocation invocation, TenantId tenantId) => context.IsResolved && context.TenantId == tenantId
+        && (context.OrganizationId is null || AnnouncesOrganization(invocation))
+        && context.HostScope is null && context.UserId is null
         && unit.HasActiveTransaction && !unit.IsRollbackOnly && unit.Mode == TransactionMode.ReadWrite
         && unit.Transaction is not null && unit is not IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }
         && unit.GetTenantContextAnnouncement(unit.Transaction) is { Generation: > 0 } announcement
-        && announcement.TenantId == tenantId;
+        && announcement.TenantId == tenantId && announcement.OrganizationId == context.OrganizationId;
+
+    /// <summary>
+    /// Whether the act may run in an organization: only a closure's fan-out, by the operation its operator descriptor
+    /// was minted for (ADR-0102 Amendment 2).
+    /// </summary>
+    private static bool AnnouncesOrganization(OperationInvocation invocation) =>
+        invocation.TrustedSource?.Operator?.Operation is { } operation
+        && ReferenceEquals(operation, PlatformOperations.ClosureFanOut);
 
     private static Result<OperatorActAdmission> Refused() =>
         Result<OperatorActAdmission>.Fail(new Error(new LocalizedMessage("lockey_forbidden")));

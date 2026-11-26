@@ -28,7 +28,8 @@ public sealed partial class TenantContextConstructionTests
             [$"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.Create)}",
              $"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.CreateForConsentSubjectScope)}",
              $"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.CreateForInvitationOffer)}",
-             $"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.CreateForNativeScope)}"],
+             $"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.CreateForNativeScope)}",
+             $"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.CreateForOwnDataRequestScope)}"],
             "Fix: only the reconciliation factory may create host provenance; scan must see its real call");
     }
 
@@ -49,7 +50,7 @@ public sealed partial class TenantContextConstructionTests
         module.Types.Add(probe);
         HostScopeConstructors(module).Should().Contain("ReviewProbe.SecondProducer.Build");
         module.Types.Remove(probe);
-        HostScopeConstructors(module).Should().HaveCount(4);
+        HostScopeConstructors(module).Should().HaveCount(5);
     }
 
     private static IEnumerable<string> HostScopeShapeViolations(Type type)
@@ -140,7 +141,8 @@ public sealed partial class TenantContextConstructionTests
             [$"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.Create)}",
              $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForNativeScope)}",
              $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForInvitationOffer)}",
-             $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForConsentSubjectScope)}"],
+             $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForConsentSubjectScope)}",
+             $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForOwnDataRequestScope)}"],
             "a second member handing back a TenantContext is a second entry point, "
             + "whatever it delegates to");
     }

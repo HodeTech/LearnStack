@@ -161,6 +161,49 @@ public sealed class AdministrationHttpInputTests
         Assert.False(AdministrationHttpInput.TryPage(http.Request, out _, out _));
     }
 
+    /// <summary>
+    /// The ticket and chunk routes read their body through a buffer that is overwritten once the body is disposed, and a
+    /// refused shape clears it before returning; the document parses the buffer in place, so no other copy is made here.
+    /// </summary>
+    [Theory]
+    [InlineData("{\"ticket\":\"secret-ticket-canary\",\"index\":0}", true)]
+    [InlineData("{\"ticket\":\"secret-ticket-canary\",\"index\":0,\"extra\":1}", false)]
+    public async Task A_sensitive_body_buffer_is_cleared_on_disposal_and_on_refusal(string json, bool valid)
+    {
+        var http = Http(json);
+        var captured = new List<byte[]>();
+        var reader = new CapturingStream(Encoding.UTF8.GetBytes(json), captured);
+        http.Request.Body = reader;
+
+        var body = await AdministrationHttpInput.ReadSensitiveObjectAsync(http, "ticket", "index");
+
+        Assert.Equal(valid, body is not null);
+        var buffer = Assert.Single(captured);
+        if (body is not null)
+        {
+            Assert.True(System.Runtime.InteropServices.MemoryMarshal.TryGetArray(body.Buffer, out var segment));
+            Assert.Same(buffer, segment.Array);
+            Assert.Equal("secret-ticket-canary", body.RootElement.GetProperty("ticket").GetString());
+            Assert.Contains("secret-ticket-canary", Encoding.UTF8.GetString(buffer), StringComparison.Ordinal);
+            body.Dispose();
+        }
+
+        Assert.All(buffer, value => Assert.Equal(0, value));
+        Assert.Equal(0, http.Request.Body.Position);
+    }
+
+    /// <summary>A body stream that records the destination array it was read into.</summary>
+    private sealed class CapturingStream(byte[] content, List<byte[]> captured) : MemoryStream(content)
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (System.Runtime.InteropServices.MemoryMarshal.TryGetArray<byte>(buffer, out var segment) && segment.Array is { } array
+                && !captured.Contains(array))
+                captured.Add(array);
+            return await base.ReadAsync(buffer, cancellationToken);
+        }
+    }
+
     private static DefaultHttpContext Http(string body)
     {
         var http = new DefaultHttpContext();

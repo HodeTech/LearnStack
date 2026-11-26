@@ -8,7 +8,9 @@
     "invitations": "Davetler",
     "invitation_policy": "Davet geçerlilik süresi",
     "custom_fields": "Özel alanlar",
-    "federation": "Çoklu oturum açma"
+    "federation": "Çoklu oturum açma",
+    "data_requests": "Verileriniz",
+    "subject_data_requests": "Veri talepleri"
   },
   "scope": {
     "tenant": "Kurum genelinde erişim",
@@ -148,6 +150,135 @@
     "policy_save": "Davet geçerlilik süresini kaydet",
     "policy_read_only": "Bu kuralı görüntüleyebilirsiniz. Düzenlemek için kurum genelinde ayar yetkisi gerekir.",
     "required": "Zorunlu"
+  },
+  "data_requests": {
+    "title": "Veri talepleri",
+    "detail_title": "Veri talebi",
+    "intro": "Mevcut erişiminizdeki üyelerin verilerinin dışa aktarılması ya da silinmesi için yapılan talepler, en yenisi en üstte. Her talebin durumunu ve sayılarını görürsünüz; verilerin kendisini hiçbir zaman görmezsiniz.",
+    "no_download": "Dışa aktarılan dosya yalnızca ilgili kişiye, kendi veri sayfasında sunulur. Yöneticiler bu dosyayı indiremez.",
+    "no_closure": "Hesap kapatma, kişinin yalnızca kendisinin yapabileceği bir taleptir ve burada gösterilmez.",
+    "from_member": "Dışa aktarma talebinde bulunmak için üyenin sayfasını açın. Silme talebinde bulunmak için önce üyeliği üyenin sayfasından sonlandırın; ardından silme talebinin yapıldığı sayfa açılır.",
+    "open_members": "Üyelere git",
+    "scope_tenant": "Bunlar kurum üyelikleriyle ilgili taleplerdir. Bir şube üyeliğiyle ilgili talepler o şubenin erişiminde yapılır ve orada gösterilir.",
+    "scope_organization": "Bunlar, mevcut şubenizdeki üyeliklerle ilgili taleplerdir.",
+    "list_title": "Talepler",
+    "empty": "Bu kapsamda henüz bir veri talebi yapılmadı.",
+    "next_page": "Daha eski talepler",
+    "back": "Veri taleplerine dön",
+    "concerns": "Üye",
+    "name_unavailable": "Üyenin adı gösterilemiyor",
+    "subject_revoked": "Üyeliği sonlandırılmış üye",
+    "filed_by": "Talep eden",
+    "memberships_note": "Bu talep, bu kişinin bu kapsamdaki birden fazla üyelik kaydını kapsıyor:",
+    "membership_record": "Üyelik kaydı",
+    "memberships_more": "Yalnızca ilk 20 kayıt listelenir.",
+    "own_data": "Kendi veri sayfanız",
+    "kind": {
+      "export": "Veri dışa aktarma",
+      "erasure": "Silme"
+    },
+    "filed": {
+      "you": "Siz",
+      "other": "Başka bir yönetici",
+      "person": "Kişinin kendisi",
+      "closure": "Kişinin hesap kapatma talebi"
+    },
+    "next": {
+      "export_requested": "Dışa aktarma hazırlanıyor. Bu genellikle birkaç dakika sürer.",
+      "export_ready": "Dosya hazır. Kişi, gösterilen tarihe kadar dosyayı kendi veri sayfasından indirebilir.",
+      "export_gone": "Dosya artık indirilemiyor.",
+      "erasure_scheduled": "Silme işlemi gösterilen zamandan sonra başlar. O zamana kadar kişi ve talebi yapan yönetici işlemi iptal edebilir.",
+      "erasure_scheduled_self": "Silme işlemi gösterilen zamandan sonra başlar. O zamana kadar kişi işlemi iptal edebilir.",
+      "erasure_fulfilling": "Üyenin bu kapsamdaki verileri siliniyor.",
+      "erasure_awaiting": "Üyenin bu kapsamdaki verileri silindi. İşlem kayıtlarındaki son adımı şimdi bir operatör tamamlıyor."
+    },
+    "last_refusal": {
+      "blocked_window": "Bir operatör bekleme süresi dolmadan işleme başlamayı denedi.",
+      "blocked_hold": "Kurumun bu kişinin verilerini şimdilik saklaması gerektiği için, örneğin açık bir ödeme konusu nedeniyle, işlem durduruldu.",
+      "blocked_last_administrator": "Bu kişi kurumun tek yöneticisi olduğu için işlem durduruldu. Başka bir yönetici atandıktan sonra yeni bir silme talebinde bulunulabilir."
+    },
+    "failure": {
+      "export_too_large": "Kişinin verileri tek bir dosyaya sığmayacak kadar büyük olduğu için dışa aktarma başarısız oldu. Dışa aktarma boyut sınırı için platform operatörüne başvurun."
+    },
+    "collection_invitations_issued": "Kişinin gönderdiği davetler",
+    "retained": {
+      "consent_evidence": "Kişinin verdiği ya da geri çektiği izinlerin kayıtları",
+      "invitation_record": "Kişinin gönderdiği ya da kabul ettiği davetlerin kayıtları",
+      "audit_actor_reference": "Kişinin yaptığı işlemlere ait işlem kayıtları",
+      "audit_entity_reference": "Kişinin üyeliğiyle ilgili işlem kayıtları",
+      "audit_metadata_reference": "Kişiden söz eden işlem kayıtları",
+      "federation_actor_reference": "Kişinin tek oturum açma kurulumunda attığı adımların kayıtları",
+      "unserved_group": "İşlenemeyen ve kişinin verilerini şimdilik saklayan yerler"
+    },
+    "refusal": {
+      "request_already_active": "Bu kapsamda bu üye için aynı türden bir talep zaten sürüyor. Tamamlanmasını bekleyin ya da talebi siz yaptıysanız iptal edin.",
+      "subject_membership_current": "Bu kişinin bu kapsamda hâlâ etkin ya da askıdaki bir üyeliği var. Verileri ancak bu üyelik sonlandırıldıktan sonra silinebilir.",
+      "blocked_hold": "Kurumun bu üyenin verilerini şimdilik saklaması gerektiği için, örneğin açık bir ödeme konusu nedeniyle, bu işlem şu anda ilerleyemiyor.",
+      "blocked_last_administrator": "Bu üye kurumun tek yöneticisi. Silme talebinde bulunmadan önce başka bir yönetici atayın.",
+      "snapshot_too_large": "Bu kişinin bu kapsamdaki üyelik kayıtları, tek bir talebin kapsayabileceğinden fazla. Yardım için platform operatörüne başvurun.",
+      "subject_not_admitted": "Bu kişinin hesabı kapatılıyor; bu nedenle onunla ilgili yeni bir talep oluşturulamaz.",
+      "data_export_unavailable": "Bu dosya artık mevcut değil; bu yüzden silinecek bir şey yok.",
+      "unknown": "Bu talep reddedildi. Yeniden denemeden önce güncel durumunu kontrol edin."
+    },
+    "result": {
+      "export": "Dışa aktarma talep edildi. Dosya genellikle birkaç dakika içinde hazır olur ve ardından kişinin kendi veri sayfasında kullanıma sunulur.",
+      "erasure": "Silme talep edildi. İşlem 24 saat sonra başlar; o zamana kadar siz ya da kişi talebi iptal edebilirsiniz.",
+      "revoked": "Dosya silindi. Artık hiç kimse onu indiremez."
+    },
+    "member": {
+      "intro": "Mevcut erişiminizde bu üyenin verileriyle ilgili talepler. Durumlarını görürsünüz; verilerin kendisini hiçbir zaman görmezsiniz.",
+      "other_scope": "Bu üyeyle ilgili veri talepleri üyenin kendi kapsamında yapılır. Bunları görmek ya da yeni talepte bulunmak için hesap erişiminizi o kapsama geçirin.",
+      "none": "Bu kapsamda bu üyeyle ilgili bir veri talebi yapılmadı.",
+      "unavailable": "Bu üyenin veri talepleri şu anda kontrol edilemedi. Aşağıdaki formlar yine de çalışır; her talep yapıldığı anda kontrol edilir.",
+      "partial": "Bu üye için yalnızca bu kapsamdaki en yeni 100 talep kontrol edildi. Daha eskileri veri talepleri sayfasındadır.",
+      "all": "Tüm veri talepleri"
+    },
+    "export": {
+      "title": "Bu üyenin verilerini dışa aktar",
+      "description": "Bu kurumun bu kapsamda kişiyle ilgili tuttuğu verileri tek bir dosyada hazırlar: üyeliği ve profili, verdiği yanıtlar ve izinler, davetleri ve bu kapsamda kendisiyle ilgili işlem kayıtları. Dosya 7 gün boyunca yalnızca kişiye, kendi veri sayfasında sunulur. Siz dosyanın durumunu ve boyutunu görürsünüz, içeriğini hiçbir zaman görmezsiniz.",
+      "replaces": "Kişinin indirebileceği bir dosya hâlâ varken dışa aktarma talep edilemez; çünkü yeni bir dışa aktarma o dosyayı siler.",
+      "action": "Dışa aktarma talep et",
+      "active": "Bu üye için zaten bir dışa aktarma hazırlanıyor."
+    },
+    "erasure": {
+      "title": "Bu üyenin verilerini sil",
+      "summary": "Silme işlemi kişinin bu kapsamdaki profilini ve yanıtlarını temizler ve buradaki rollerini kaldırır. Hesabı ve başka yerlerdeki üyelikleri olduğu gibi kalır.",
+      "revoke_first": "Önce üyeliği Üyelik erişimi bölümünden sonlandırın. Sonlandırma ayrı bir işlem olarak kaydedilir; ardından silme talebinin yapıldığı sayfa açılır.",
+      "start": "Silme işlemini gözden geçir",
+      "erased_title": "Neler silinir",
+      "erased_profile": "Kişinin adı, dil tercihi ve bu kapsamda verdiği yanıtlar temizlenir.",
+      "erased_roles": "Bu kapsamdaki rolleri kaldırılır. Sonlandırılmış üyelik boş bir kayıt olarak kalır.",
+      "erased_exports": "Henüz indirilebilen veri kopyaları silinir, hazırlanmakta olan bir kopya da iptal edilir.",
+      "erased_invitations": "Kişinin bu kapsamda gönderdiği ve henüz kimsenin kabul etmediği davetler geri çekilir.",
+      "kept_title": "Neler saklanır",
+      "kept_intro": "Bazı kayıtların saklanması gerekir. Bu kayıtlarda artık kişinin adı ya da yanıtları yer almaz, ancak kişiyi bir iç numarayla göstermeye devam ederler:",
+      "kept_consent": "kişinin verdiği ya da geri çektiği izinlerin kaydı, kanıt olarak;",
+      "kept_invitations": "kişinin gönderdiği ya da kabul ettiği davetlerin kaydı, davetin gönderildiği e-posta adresi de dahil;",
+      "kept_audit": "işlem kayıtları: silme işleminden sonra bir operatör, kişiyle ilgili bu kapsamdaki işlem kayıtlarından ağ adreslerini, tarayıcı bilgilerini ve e-posta adreslerini çıkarır; yöneticilerin burada kişiyle ilgili yaptığı işlemlerin kayıtları da buna dahildir. Kişinin başka şubelerde ya da kurum düzeyinde yaptığı işlemlerin kayıtları bu talepten etkilenmez;",
+      "kept_attribution": "burada bir şeyi kimin oluşturduğuna ya da en son kimin değiştirdiğine dair notlar;",
+      "kept_receipt": "bu talep ve makbuzu.",
+      "timing": "Silme işlemi talebinizden 24 saat sonra başlar. O zamana kadar kişi talebi kendi veri sayfasından, siz de talebin sayfasından iptal edebilirsiniz. Kişi bu 24 saat içinde bu kapsama yeniden üye olsa bile silme işlemi yine yapılır.",
+      "legend": "Silme talebini onaylayın",
+      "confirm": "Nelerin silineceğini ve nelerin saklanacağını, silme işlemi başladıktan sonra geri alınamayacağını anlıyorum.",
+      "action": "Silme talep et"
+    },
+    "erasure_page": {
+      "title": "Sonlandırılmış bir üyenin verilerini sil",
+      "revoked": "Bu sayfa, aşağıda adı geçen üyeliğin silinmesini ister. Sonlandırılmış bir üyelik artık üyeler arasında listelenmez ve bir üye sayfası yoktur.",
+      "membership": "Üyelik",
+      "only_revoked": "Silme talebi ancak kişinin bu kapsamda etkin ya da askıda bir üyeliği yokken yapılabilir. Aksi hâlde talep reddedilir ve hiçbir şey değişmez.",
+      "missing": "Hiçbir üyelik belirtilmedi. Bu sayfa, bir üyelik sonlandırıldıktan hemen sonra o üyelik için açılır."
+    },
+    "cancel": {
+      "hint": "İptal etmek talebi sona erdirir. Üyeyle ilgili hiçbir şey değişmez.",
+      "other": "Bu talebi başka bir yönetici yaptı. Talebi yalnızca o yönetici ya da kişinin kendisi iptal edebilir.",
+      "person": "Bu talebi kişinin kendisi yaptı. Talebi yalnızca kişi iptal edebilir."
+    },
+    "revoke": {
+      "title": "Dışa aktarılan dosyayı sil",
+      "hint": "Dosya silindikten sonra kişi de dahil hiç kimse onu indiremez. Talep bir kayıt olarak kalır.",
+      "action": "Dosyayı şimdi sil"
+    }
   },
   "custom_fields": {
     "title": "Özel alanlar",

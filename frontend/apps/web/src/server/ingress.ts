@@ -202,6 +202,7 @@ export function admitIncomingRequest(
     path?.startsWith('/api/auth/') ||
     (path !== undefined && BFF_POST_PATHS.includes(path)) ||
     path === '/account/consents' ||
+    path === '/account/data' ||
     path === '/invitations' ||
     path === '/invitations/confirm' ||
     path === '/studio' ||
@@ -434,6 +435,28 @@ export function loadLocalEnvironment(
         Buffer.byteLength(value) > 8192
       )
         throw new Error('Invalid API invitation email configuration');
+      result[key] = value;
+    }
+  }
+  // The export key ring (ADR-0107 § 4) and bundle ceiling belong only to the
+  // selected API, which validates both at startup.
+  const dataExportKeys = ['DataExport__KeyRing', 'DataExport__MaxBytes'];
+  for (const key of dataExportKeys) delete result[key];
+  if (options.apiAuthentication) {
+    for (const key of dataExportKeys) {
+      const values = [source[key], projection[key], environment[key]].filter(
+        (value): value is string => value !== undefined,
+      );
+      if (new Set(values).size > 1) throw new Error('Conflicting API data export configuration');
+      const value = values[0];
+      if (value === undefined) continue;
+      if (
+        typeof value !== 'string' ||
+        !value.trim() ||
+        containsControl(value) ||
+        Buffer.byteLength(value) > 8192
+      )
+        throw new Error('Invalid API data export configuration');
       result[key] = value;
     }
   }

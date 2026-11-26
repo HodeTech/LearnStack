@@ -185,7 +185,11 @@ LearnStack runs **two Keycloak realms** per
   credential is an operator-supplied `view-users` client for the new realm, created for
   the run and deleted after it; it is not a LearnStack runtime or federation
   credential, and [ADR-0099](../decisions/0099-confined-tenant-federation.md)'s refusal
-  of user-level authority for LearnStack is unaffected.
+  of user-level authority for the federation credential is unaffected. The one LearnStack
+  runtime credential with user-level authority is the account-removal client of
+  [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md), held
+  by the closure's Finalize alone
+  ([Standard 20](20-infrastructure-stack.md#confined-account-removal-adapter)).
 
 General rules:
 
@@ -768,24 +772,24 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. The accepted fourteen logical setter paths are
-enumerated below; ADR-0097 adds only the machine provider-recipient owner, and
+`TransactionExecutionCoordinator`. The accepted fifteen logical setter paths are
+enumerated below; ADR-0097 adds only the machine provider-recipient owner,
 [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
-only the federation host-alias reader.
-Implementation and source-bound proof are recorded in
-the [phase Status](../roadmap/phase-03-identity-admin.md).
-ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth own-context
-discovery reader; their source bounds are in the
-[owner census](#owner-and-setter-census). ADR-0077's confined evidence methods and
-ADR-0080's scope-only enable/clear sites do not add logical Tenant setters. The set
-is closed
+only the federation host-alias reader, and
+[ADR-0106 § 9](../decisions/0106-subject-data-requests-authority-and-status.md) only the
+retained own data-request scope owner. Implementation and source-bound proof are
+recorded in the [phase Status](../roadmap/phase-03-identity-admin.md). ADR-0076 adds the
+ninth candidate reader and ADR-0078 the tenth own-context discovery reader; their source
+bounds are in the [owner census](#owner-and-setter-census). ADR-0077's confined evidence
+methods and ADR-0080's scope-only enable/clear sites do not add logical Tenant setters.
+The set is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
-with its dated Amendments, is the authority; it is reproduced here because this
-section is the placement authority). Two set it on the **ambient** transaction;
-eight own a **short transaction of their own** under their exact source contract;
-ADR-0093 adds one **operation-bound invitation witness** setter and ADR-0095
-one **operation-bound consent-subject witness** setter. Both use the existing
-physical unit-of-work writer with the exact operation mode below:
+with its dated Amendments, is the authority; it is reproduced here because this section
+is the placement authority). Two set it on the **ambient** transaction; eight own a
+**short transaction of their own** under their exact source contract; ADR-0093 adds one
+**operation-bound invitation witness** setter and ADR-0095 one **operation-bound
+consent-subject witness** setter. Both use the existing physical unit-of-work writer
+with the exact operation mode below:
 
 | Setter | Transaction | Why it is not `TransactionBehavior` |
 |---|---|---|
@@ -803,6 +807,7 @@ physical unit-of-work writer with the exact operation mode below:
 | `ConsentSubjectScope` | operation-bound existing owner, physical ReadOnly for retained discovery/history or ordinary ReadWrite for withdrawal | Single-use exact operation/actor/subject/real-host/retained-scope/mode witness; no Membership, ordinary native session, custom value or `app.scope` |
 | `ProviderEventRecipient` | actual claimed-target owner, ordinary app ReadWrite | Private source-validated single-use target/EventId/tenant/token/lease witness; only its outbox production; no HTTP, Platform, profile or ordinary protected command authority |
 | `FederationHostAliasReader` | its own short read-only one | The native self read ends before tenant resolution; it announces only the classified host tenant and reads only that tenant's Active federation alias ([Database Standards § Federation host-alias read](05-database.md#federation-host-alias-read)) |
+| `OwnDataRequestScope` | operation-bound fresh owner, physical ReadOnly for list/read or ordinary ReadWrite for create/cancel/ticket/chunk | Single-use exact operation/actor/subject/real-host/retained-group/mode witness built from `fn_identity_own_data_request_scopes`; no Membership, ordinary native session or `app.scope` ([Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope)) |
 
 > **`IOrganizationScopeValidator` performs row-7 organization narrowing after
 > affirmative live Membership admission.** `TenantAssertionMiddleware` separately
@@ -827,9 +832,9 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the fourteen admitted setters connects as `learnstack_app`. A setter that reached
-for `learnstack_platform` would be invisible to the isolation suite, which is the
-failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
+Every one of the fifteen admitted setters connects as `learnstack_app`. A setter that
+reached for `learnstack_platform` would be invisible to the isolation suite, which is
+the failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
 
 Because every `current_setting` read is called with its missing-OK argument (`true`)
@@ -840,47 +845,46 @@ leak — but an empty result set arriving from production is an outage, so
 the `SET LOCAL` pair on this transaction before any command a module `DbContext` issues
 runs on it.
 
-**Keyed on the transaction, not on the table**, and marked through the ambient
-unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
-between every query and the database to decide something the transaction already
-answers.
-Of the fourteen admitted logical paths, the MediatR transaction owner and P02b-3's integration
-transport mark the ambient transaction through sanctioned `IUnitOfWork`
-announcement methods. Durable acceptance and prepared subscriber execution both
-announce before their first app-role command; the production call-site census
-closes these implementations without adding another logical setter. Durable
-idempotency activation/proof belongs to the
-[phase Status block](../roadmap/phase-03-identity-admin.md). The five original raw paths,
-`OrganizationScopeValidator`,
-the two standalone audit writers and the two cached-projection loaders, issue raw
-`NpgsqlCommand`s on connections of their own, which EF interception never sees.
-The ninth and tenth use their confined common-owner announcement seams and exact
-source/generation guards. The eleventh consumes its operation-bound invitation
-witness through the existing physical unit-of-work writer. The preliminary
-offer function owner closes before that consumer owner starts. The twelfth
-consumes its distinct consent-subject witness after its preliminary owner closes;
-its retained history/withdrawal modes cannot be exchanged or reused.
-The fourteenth, `FederationHostAliasReader`, issues raw `NpgsqlCommand`s on a READ ONLY
+**Keyed on the transaction, not on the table**, and marked through the ambient unit's
+announcement seam. Matching `[TenantOwned]` table names would put a parser between every
+query and the database to decide something the transaction already answers. Of the
+fifteen admitted logical paths, the MediatR transaction owner and P02b-3's integration
+transport mark the ambient transaction through sanctioned `IUnitOfWork` announcement
+methods. Durable acceptance and prepared subscriber execution both announce before their
+first app-role command; the production call-site census closes these implementations
+without adding another logical setter. Durable idempotency activation/proof belongs to
+the [phase Status block](../roadmap/phase-03-identity-admin.md). The five original raw
+paths, `OrganizationScopeValidator`, the two standalone audit writers and the two
+cached-projection loaders, issue raw `NpgsqlCommand`s on connections of their own, which
+EF interception never sees. The ninth and tenth use their confined common-owner
+announcement seams and exact source/generation guards. The eleventh consumes its
+operation-bound invitation witness through the existing physical unit-of-work writer.
+The preliminary offer function owner closes before that consumer owner starts. The
+twelfth consumes its distinct consent-subject witness after its preliminary owner
+closes; its retained history/withdrawal modes cannot be exchanged or reused. The
+fourteenth, `FederationHostAliasReader`, issues raw `NpgsqlCommand`s on a READ ONLY
 connection of its own, like the cached-projection loaders, and announces only the host
-tenant for its one alias read.
-`CachedHostToTenantResolver` is not in this set at all: it sets
-`app.resolving_host`, not `app.tenant_id`. That is also why the
-exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
-announces no tenant by design, is invisible to the guard by construction rather than by a
-hand-written exception. The concern the earlier wording had — that naming
-`TransactionBehavior` alone would reject legitimate transport and audit writes,
-and the durable idempotency store's writes on its own short transaction — is real,
-and is answered by the guard reading a marker rather than a behavior's name:
-a setter marks the transaction it
-opens if and only if it reaches EF. The audit store's writers have landed and reach none;
-the durable idempotency store must mark its own whenever it does. It throws
+tenant for its one alias read. The fifteenth, `OwnDataRequestScope`, consumes its
+distinct retained data-request witness through the same physical unit-of-work writer
+after the preliminary `fn_identity_own_data_request_scopes` owner closes; it announces
+exactly the witness's group and its list/read and write modes cannot be exchanged or
+reused. `CachedHostToTenantResolver` is not in this set at all: it sets
+`app.resolving_host`, not `app.tenant_id`. That is also why the exemption list is empty,
+and why `PlatformAdminScope`, whose `BYPASSRLS` connection announces no tenant by
+design, is invisible to the guard by construction rather than by a hand-written
+exception. The concern the earlier wording had — that naming `TransactionBehavior` alone
+would reject legitimate transport and audit writes, and the durable idempotency store's
+writes on its own short transaction — is real, and is answered by the guard reading a
+marker rather than a behavior's name: a setter marks the transaction it opens if and
+only if it reaches EF. The audit store's writers have landed and reach none; the durable
+idempotency store must mark its own whenever it does. It throws
 `TenantContextMissingException` when it has not, which
 [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md)
-asserts in both directions. **Packet 7 owns it**: Packet 6 ships
-the setter (`IUnitOfWork.SetTenantContextAsync`) and the policies it will back up, and
-the first tenant-owned read on a request path is Packet 7's, which is where the guard
-belongs. It cannot be a connection-checkout interceptor, for the same reason it cannot be
-a `DbConnectionInterceptor` that *sets* the values: checkout precedes the transaction, so
+asserts in both directions. **Packet 7 owns it**: Packet 6 ships the setter
+(`IUnitOfWork.SetTenantContextAsync`) and the policies it will back up, and the first
+tenant-owned read on a request path is Packet 7's, which is where the guard belongs. It
+cannot be a connection-checkout interceptor, for the same reason it cannot be a
+`DbConnectionInterceptor` that *sets* the values: checkout precedes the transaction, so
 the transaction-local value is not there to be observed
 ([05-database.md § Connection Management](05-database.md)).
 
@@ -1949,6 +1953,49 @@ Membership creation. The accepted package owns the exact method/path/request
 census, including distinct own/admin custom-value PATCH requests; no generic
 native proxy or arbitrary dispatcher follows. The three global-self descriptors,
 roles and four physical context writers remain unchanged.
+
+The retained own data-request entry of
+[ADR-0106 § 9](../decisions/0106-subject-data-requests-authority-and-status.md) is the
+same model for data requests, and the closed native retained-entry set grows by exactly
+its nine operations (list, export, erasure and account-closure creation, cancel, revoke,
+ticket, chunk, and the discovery of the person's groups) under
+`/api/v1/identity/data-request-entry/`; the closure creation is
+[ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)'s
+filing by the person alone. They are selector-free native requests: the
+native session source credential and a stock-validated bearer credential, which
+`ValidatedOwnDataRequestCredential` captures for exactly these requests, and an existing
+Active global binding; a tenant or organization selector header is refused, and a
+Closing/Closed or unknown binding never reaches them. A filing admitted while the person
+was Active whose transaction takes the subject's User fence only after a closure's Begin
+committed stores nothing: the request guard reads the User status under that fence, and
+the creation answers `lockey_subject_not_admitted`. Every purpose but discovery names
+its one group, and `fn_identity_own_data_request_scopes` proves it for the normalized
+actor under the independently classified host ceiling before the context exists; no
+submitted field names the actor or widens the host. The `OwnDataRequestScope` witness is
+minted only by `OwnDataRequestSubjectSource` for the exact captured request on the exact
+endpoint, admits only `OwnDataRequestEntry` operations under the
+`HostAndOwnDataRequestScope` origin, and supplies no Membership authority, ordinary
+native session or tenant-wide `app.scope`. A download ticket minted here binds the
+retained credential under its own domain and is never honoured on the live path, nor a
+live ticket here. The three global-self descriptors, roles and four physical context
+writers remain unchanged.
+
+The native `/account/data` document and its closed POSTs
+([ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) § 9,
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4,
+[Frontend Architecture § Subject data requests](07-frontend-architecture.md#subject-data-requests))
+have exactly two owners. A document prefers a live `__Host-ls-entry` owner and falls
+back to the live session's owner only when the entry is absent, revoked or expired;
+any other owner failure is the answer. A POST names its owner by its path, the entry
+under `/api/auth/entry/data-requests` and the session under
+`/api/account/data-requests/`, and never falls back. The response is pinned to that
+owner for at most its remaining life, the entry's fixed deadline (at most five minutes
+from the start of sign-in, never extended) or the session's effective expiry, and holds
+one snapshot credit from the first read to the last byte, a download's ticket mint and
+every chunk included. The export ticket stays inside the BFF's download relay: it never
+appears in a URL, header, page, form or log. As for the consent entry, no branding or
+public configuration read is admitted, and every POST proves the exact Origin and the
+owner's CSRF token before any API work.
 
 New P03-5 body-bearing replay uses only the [scoped versioned HMAC ring and
 metadata read](05-database.md#custom-field-replay-key-custody). Existing fingerprint

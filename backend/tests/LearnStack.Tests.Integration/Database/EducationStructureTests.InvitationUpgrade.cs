@@ -33,7 +33,9 @@ public sealed partial class EducationStructureTests
         }
         await MigrationChains.ApplyAllAsync(database.MigrationConnectionString);
         (await ParentGuardOffendersAsync(owner)).Should().BeEmpty();
-        (await ReadForeignKeysAsync(owner, null)).Should().BeEquivalentTo(beforeRelations);
+        // The P03-10 data-request tables arrive after the invitation predecessors; only their own relations are new.
+        (await ReadForeignKeysAsync(owner, null)).Where(key => !SchemaTableClasses.IdentityDataRequest.Contains(key.Child))
+            .Should().BeEquivalentTo(beforeRelations);
         (await SchemaQueries.ReadStringsAsync(owner, aclSql)).Should().Equal(beforeAcl);
     }
 

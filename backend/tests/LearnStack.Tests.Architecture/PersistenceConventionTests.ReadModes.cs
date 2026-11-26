@@ -1,6 +1,7 @@
 using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using FluentAssertions;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
@@ -44,6 +45,9 @@ public sealed partial class PersistenceConventionTests
         // ADR-0099: the administrator's federation detail is audit Off and physically ReadOnly.
         (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation",
             typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.GetFederationConnectionQuery).FullName!, "LearnStack.Modules.Identity.Application.Contracts"),
+        // ADR-0106 § 9: the retained discovery and status reads run on a physically read-only owner, as their witness requires.
+        (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", typeof(ListRetainedDataRequestScopesQuery).FullName!, "LearnStack.Modules.Identity.Application.Contracts"),
+        (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", typeof(ListRetainedDataRequestsQuery).FullName!, "LearnStack.Modules.Identity.Application.Contracts"),
     ];
 
     // The shared persistence seam stays module-independent. Each of the eleven exact
@@ -57,7 +61,7 @@ public sealed partial class PersistenceConventionTests
             .Which.SetMethod.Should().BeNull();
         typeof(GetAccountSiteQuery).IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
             .Should().BeFalse("the authenticated read does not acquire anonymous authority");
-        foreach (var request in new[] { typeof(GetOwnMembershipProfileQuery), typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetTenantInvitationPolicyQuery), typeof(InspectInvitationQuery), typeof(GetOwnInvitationResultQuery), typeof(GetOwnMembershipCustomFieldsQuery), typeof(GetOwnMembershipFieldConsentQuery), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery) })
+        foreach (var request in new[] { typeof(GetOwnMembershipProfileQuery), typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetTenantInvitationPolicyQuery), typeof(InspectInvitationQuery), typeof(GetOwnInvitationResultQuery), typeof(GetOwnMembershipCustomFieldsQuery), typeof(GetOwnMembershipFieldConsentQuery), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery), typeof(ListRetainedDataRequestScopesQuery), typeof(ListRetainedDataRequestsQuery) })
             request.IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
                 .Should().BeFalse("own Membership coverage does not acquire anonymous authority");
 
@@ -132,7 +136,8 @@ public sealed partial class PersistenceConventionTests
             foreach (var request in new[] { typeof(GetAccountSiteQuery), typeof(GetOwnMembershipProfileQuery),
                          typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery),
                          typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery), typeof(InspectInvitationQuery), typeof(GetOwnInvitationResultQuery), typeof(AcceptInvitationCommand),
-                         typeof(ListOrganizationsQuery), typeof(GetOrganizationDetailQuery) })
+                         typeof(ListOrganizationsQuery), typeof(GetOrganizationDetailQuery),
+                         typeof(ListRetainedDataRequestScopesQuery), typeof(ListRetainedDataRequestsQuery) })
             {
                 var hardcoded = Instruction.Create(OpCodes.Isinst, behavior.Module.ImportReference(request));
                 handle.Body.Instructions.Add(hardcoded);

@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**393 test methods run in
+**424 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,8 +217,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**293 rules in this catalogue are Implemented, and 175 of them are in that assembly.**
-The other 118 are no less binding, and most could not live there. The table says where
+**309 rules in this catalogue are Implemented, and 190 of them are in that assembly.**
+The other 119 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -2734,6 +2734,63 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   command-path measurement. Current qualification/review state lives in the
   [phase Status block](../roadmap/phase-03-identity-admin.md).
 - **Phase:** P03-1 Step 4.
+- **Note:** the global account closure's acquirer on the platform connection is not
+  this census's subject; it has its own leg,
+  [the closure fences rule](#the_closure_fences_are_taken_by_one_platform_acquirer_user_first_then_each_tenant_ascending_for_the_transaction).
+
+#### `The_Closure_Fences_Are_Taken_By_One_Platform_Acquirer_User_First_Then_Each_Tenant_Ascending_For_The_Transaction`
+
+- **Asserts:** in the production IL, the methods that derive both a User and a Tenant
+  identity lock key are exactly `IdentityMutationLocks.AcquireAsync` and
+  `PlatformIdentityFences.AcquireCoreAsync`, the one body of the acquirer's two forms;
+  in the production source, the one file that names the platform scope's handle and
+  derives an identity lock key is the closure's acquirer; and that acquirer, read
+  without comments, asks the transaction's isolation once and admits only
+  `read committed`, bounds the transaction's waits once with a transaction-local
+  `lock_timeout`, takes only exclusive transaction-scoped keys, and takes in order the
+  isolation question, the bound, the subject's one User key, the participant read under
+  it, the refusal of every tenant key for the User-only form and past the closure's
+  bounds, the ascending tenant order and the tenant keys.
+- **Why it matters:** the closure spans every tenant of the person on a connection that
+  announces nothing, so `IIdentityMutationLocks` cannot fence it, and the census of that
+  port never sees its acquirer. A second platform acquirer, an owner that takes a key
+  itself, a tenant key before the User key, a participant read before the User key or in
+  a snapshot taken before it, tenant keys for a person past the bounds, a shared or
+  session-level key, or an unbounded wait would break the canonical order or the
+  closure's witness.
+- **Source:**
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7;
+  [Database Standards § The closure's fences](05-database.md#the-closures-fences).
+- **Type:** xUnit — IL caller census, source scan, and eleven planted departures
+  (`The_Acquirer_Census_Finds_A_Planted_Departure`); the behaviour is proven on
+  PostgreSQL by `AccountClosureBeginTests` (the keys observed in `pg_locks` while a
+  Begin is held, the bounded wait, and admissions that race a Begin). **Kind:**
+  structural and behavioural.
+- **Status:** **Implemented** (`IdentityPlatformFenceConventionTests`, P03-10 Step 3).
+- **Phase:** P03-10.
+
+#### `The_Closure_Finalize_Takes_Its_Fences_Through_The_Acquirer_Once_In_Each_Transaction`
+
+- **Asserts:** the closure's Finalize part of `AccountClosureOperatorOperations`, read
+  without comments, calls the acquirer exactly twice, `AcquireUserAsync` once and
+  `AcquireAsync` once, names no advisory lock and derives no lock key, and in order
+  takes the User fence alone, redacts, writes its intent checkpoint, calls the
+  provider, takes every fence and only then moves the User to Closed.
+- **Why it matters:** the first transaction moves no User and no request, so the User
+  key alone keeps its participant set fixed and no participant tenant's identity writes
+  wait for its redaction; its key ends at the checkpoint's commit, so a Finalize that
+  did not take every key afterwards would move the User to Closed and complete the
+  requests with no fence held; a Finalize that took them by hand would escape the
+  acquirer's census and its bounded wait.
+- **Source:**
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7;
+  [Database Standards § The closure's fences](05-database.md#the-closures-fences).
+- **Type:** xUnit — source scan with five planted departures
+  (`The_Finalize_Census_Finds_A_Planted_Departure`); the behaviour is proven on
+  PostgreSQL by `AccountClosureFinalizeTests`, whose second transaction the `users`
+  trigger exception refuses without its own keys. **Kind:** structural.
+- **Status:** **Implemented** (`IdentityPlatformFenceConventionTests`, P03-10 Step 3).
+- **Phase:** P03-10.
 
 #### `Identity_Seed_Uses_Finite_Adopted_Manifests`
 
@@ -3530,17 +3587,17 @@ which decides identity, multiplicity, capture and classification;
     the reverse, which also carries the anti-rot check and a guard against sweeping no rows
     at all.
   - **Off the request path.** Some audited operations are not MediatR requests at all.
-    Nine rows carry `(off-path)`: Tenancy's `platform.admin_scope.enter`,
+    Their rows carry `(off-path)`, among them Tenancy's `platform.admin_scope.enter`,
     `platform.outbox.dead_letter`, `platform.delivery.dead_letter`,
-    `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
-    `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst` —
-    snake_case within each segment since
+    `platform.data_request.inspect`, `tenancy.killswitch.toggle`,
+    `tenancy.entitlement.refresh`, `tenancy.tenant_assertion.reject` and
+    `tenancy.tenant_assertion.anonymous_burst` — snake_case within each segment since
     [ADR-0036 Amendment 7](../decisions/0036-tenant-resolution-trusted-inputs.md), so that
     one parser reads every audit slug and every permission key — and Audit's
     `audit.redaction.apply` and `audit.purge.apply`. They sit outside the request-type join
-    in both directions and register by slug: the four whose writer ships through
-    `DeclareOffPath` today, the other five — which also carry `(planned)` — when their
-    writer lands. ADR-0046 assigns the producer terminal writer to P02b-2 and the
+    in both directions and register by slug: a row whose writer ships registers through
+    `DeclareOffPath`, and one that also carries `(planned)` registers when its writer
+    lands. ADR-0046 assigns the producer terminal writer to P02b-2 and the
     subscriber terminal writer to P02b-3; acceptance alone registers neither slug.
 
   Stated as one unconditional join, the rule is red on its first run: the two shipped
@@ -3711,23 +3768,24 @@ which decides identity, multiplicity, capture and classification;
 #### `Modules_Do_Not_Write_AuditLog_Directly`
 
 - **Asserts:** no module assembly **other than `LearnStack.Modules.Audit.*`** names the
-  `audit_log` table or the `AuditEntry` type, with one further exclusion — a module's
-  registered `IUserReferenceLocator`, whose column-restricted redaction `UPDATE`s are
-  enumerated by [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly). `IAuditStore` —
-  implemented by `PostgresAuditStore` in `LearnStack.Infrastructure.Audit` — is the only
-  path by which a module writes an audit row of its own. Inside the Audit module, direct
-  `audit_log` SQL is confined to `LearnStack.Modules.Audit.Infrastructure` and bounded by
-  that same closed list.
-- **Why the exclusions are named.** `AuditEntry`, `AuditConfig` and `AuditDbContext` live
-  in the Audit module ([ADR-0044 § 11](../decisions/0044-audit-write-path.md)), so a rule
-  reading "no module assembly, outside `LearnStack.Infrastructure.Audit`" forbade the
-  assembly the corpus puts the aggregate in — and contradicted the entry below,
-  [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), which names the sites where a
-  mutating statement may appear. The locators are the second exclusion and the one the
-  Audit-module wording alone would miss: each lives in the module whose snapshots carry
-  the user reference, so a rule bounded by `LearnStack.Modules.Audit.*` would fail on the
-  first locator [Phase 03](../roadmap/phase-03-identity-admin.md) lands. Naming both makes
-  the pair say one thing; widening the list past them requires an ADR.
+  `audit_log` table or the `AuditEntry` type. A module's registered
+  `IUserReferenceLocator` is no exclusion: it only declares where its references live
+  and never names the table, and the one redaction executor sits in
+  `LearnStack.Infrastructure.Audit`, outside every module, named by
+  [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly)
+  ([ADR-0108 § 2, § 7](../decisions/0108-privileged-audit-redaction.md)). `IAuditStore`
+  — implemented by `PostgresAuditStore` in `LearnStack.Infrastructure.Audit` — is the
+  only path by which a module writes an audit row of its own. Inside the Audit module,
+  direct `audit_log` SQL is confined to `LearnStack.Modules.Audit.Infrastructure`.
+- **Why the exclusion is named.** `AuditEntry`, `AuditConfig` and `AuditDbContext` live
+  in the Audit module ([ADR-0044 § 11](../decisions/0044-audit-write-path.md)), so a
+  rule reading "no module assembly, outside `LearnStack.Infrastructure.Audit`" forbade
+  the assembly the corpus puts the aggregate in — and contradicted the entry below,
+  [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), which names the site where a
+  mutating statement may appear. The locators once stood here as a second exclusion,
+  because the corpus had each module redact its own snapshots; ADR-0108 § 7 has them
+  declare paths that the Audit-owned executor applies, so no module but Audit has a
+  reason to name the table. Widening the exclusion requires an ADR.
 - **Out of scope:** `AuditEntryId` and everything in `LearnStack.SharedKernel.Audit` — the
   ports (`IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`, `AuditIntent`) and the
   value types those ports carry (`OperationType`, `OperationClass`, `AuditOutcome`,
@@ -3764,18 +3822,21 @@ which decides identity, multiplicity, capture and classification;
 #### `AuditEntry_Is_AppendOnly`
 
 - **Asserts:** no `UPDATE` or `DELETE` statement targets `audit_log` anywhere in the
-  codebase or in any migration **except** at three named sites: the GDPR redaction
-  handler and the retention purge job, both in `LearnStack.Modules.Audit.Infrastructure`,
-  and a module's registered `IUserReferenceLocator`, which redacts the payload columns of
-  its own module's snapshots and therefore lives in that module rather than in the Audit
-  one ([31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md)). Every such
-  site must be inside an `IPlatformAdminScope` block. `IAuditStore` is asserted to expose
-  no update method at all.
+  codebase or in any migration **except** at one named site: the redaction executor,
+  `LearnStack.Infrastructure.Audit/AuditRedactionExecutor.cs`, which the platform scope
+  reaches through `IAuditRedactor` for the act it admitted and which updates the six
+  granted columns and never deletes
+  ([ADR-0108 § 2](../decisions/0108-privileged-audit-redaction.md)). Phase 11's
+  retention purge adds its own path when it lands. Each sanctioned site must exist and
+  carry the `UPDATE` it is sanctioned for, and none may carry a `DELETE`. `IAuditStore`
+  is asserted to expose no update method at all.
 - **Why the exception list is closed and named:** the earlier phrasing ("anywhere in the
   codebase") contradicted paths the corpus ships by design and would have failed on its
-  first green run. Naming the three sites keeps the rule enforceable and gives
-  [`Modules_Do_Not_Write_AuditLog_Directly`](#modules_do_not_write_auditlog_directly) the
-  same sites to exclude; widening the list requires an ADR. The database-level guard is
+  first green run. The list first named three sites (a redaction handler, each module's
+  `IUserReferenceLocator`, the purge job); ADR-0108 replaced the first two with one
+  Audit-owned executor that applies the locators' declarations. Naming the site keeps
+  the rule enforceable and makes "who can redact" a one-line census; widening the list
+  requires an ADR. The database-level guard is
   [`AuditLog_Update_Is_Column_Restricted`](#auditlog_update_is_column_restricted), which
   is what actually constrains *which columns* may change.
 - **Source:** ADR-0033 (carried from ADR-0016);
@@ -3794,43 +3855,90 @@ which decides identity, multiplicity, capture and classification;
   operator result seam of ADR-0101 in P03-9 Step 1, the two controlled-rebind seams
   of ADR-0104 in P03-9 Step 3, the operator recovery seam of ADR-0103 in P03-9
   Step 4 and the platform scope's intent seam of ADR-0044 Amendment 18 in P03-9
-  Step 5. None
-  of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
-  11 — so the exemption set ships with the rule **empty**, as exact paths: the first
-  site to land adds its own path, so it is exempted by name rather than the pattern
-  widened. (A substring predicate stood there first, and exempted any Audit-module file
-  whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also
-  asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO
-  audit_log` — because with no offender anywhere, a sweep that read nothing passed as
-  well.
+  Step 5. The exemption set holds exact paths, so a site is exempted by name rather than
+  the pattern widened (a substring predicate stood there first, and exempted any
+  Audit-module file whose path contained "Redaction"); it shipped empty and holds the
+  redaction executor since P03-10 Step 2. The sweep also asserts that each listed path
+  exists and carries an `UPDATE` of the log, so an entry a rename leaves behind cannot
+  later exempt another file, and refuses a `DELETE` at a redaction site; its companion
+  feeds that pattern the shapes it must and must not catch. Since the fifth review of
+  Packet 9 the sweep also asserts its premise — it must have read `PostgresAuditStore`'s
+  own `INSERT INTO audit_log` — because with no offender anywhere, a sweep that read
+  nothing passed as well.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`
 
-- **Asserts:** every module whose audit payloads carry a user reference registers an
-  `IUserReferenceLocator` implementation. A module that stores such a reference and ships
-  no locator leaves rows a GDPR erasure cannot reach — the redaction handler redacts the
-  actor columns centrally and delegates the payload columns to the module that knows
-  which JSON paths in its own snapshots name a user
-  ([31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md)).
-- **Registered here, asserted in Phase 03.** The
-  [packet plan](../roadmap/phase-03-identity-admin.md#inherited-architecture-obligations)
-  assigns the applicable locator census and privileged redaction handler to
-  P03-10. P03-1's User foundation supplies their identity prerequisite; it does
-  not itself deliver the erasure workflow. This refines the phase-level timing in
-  [ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md),
-  without granting a redaction writer. Until that implementation there is no
-  locator population to count. Reserving the
-  name now is what [§ How to add an entry](#how-to-add-an-entry) prescribes for a rule
-  that is agreed and not yet written: the row carries **Registered** and the phase that
-  owes the code, and the alternative — a rule that lives only in an architecture
-  section's prose — is how a second spelling starts.
-- **Source:** [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md);
-  [ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md).
-- **Type:** xUnit + reflection over the registered locators, cross-checked against the
-  modules whose audit payloads carry a user reference. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 03 — the phase that lands the interface and the handler that drives it.
+- **Asserts:** every person reference the census can see in an audited entity's audit
+  snapshot is declared by its own module's registered `IUserReferenceLocator`, as
+  redactable or as an explicit retained reference, and every module that has one
+  registers exactly one locator from inside its own boundary
+  ([ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md),
+  [ADR-0108 § 7](../decisions/0108-privileged-audit-redaction.md)). The audited entities
+  are the declared types of the merged audit catalogue; their references are read from
+  each module's mapped model by CLR type (`UserId`, Identity's `MembershipId`) and, for
+  a reference stored as a plain `Guid` such as the consent's `[PiiSensitive]`
+  Membership, by a name ending in `UserId` or `MembershipId`. Every other plain `Guid`
+  of an audited entity or of what it contains fails as an unclassified identifier unless
+  it is that entity's or member's own single-column key or is on the census's explicit
+  allowance list of non-person identifiers, each entry with its reason (one today, the
+  consent's definition); every strongly typed identifier type other than the two person
+  kinds fails the same way unless its type is on a second allowance list (fourteen
+  today: the tenant, organization, role and the other identifiers the models hold, each
+  with its reason); an allowance no model holds fails as stale. Contained collections
+  are walked by the capture's own containment rule, without the foreign key to the
+  owner, so a member's reference is the path `Navigation/*/Property`. A person reference
+  fails, declared or not, where no declaration reaches it: in a member's own key, which
+  is a JSON object key and a `changes` path segment; in a part of an entity's composite
+  key, which the capture joins into `entity_id` and every `changes` path; and in a
+  collection of identifiers (an array or list of `UserId`, `MembershipId` or `Guid`, a
+  `uuid[]` included) unless it is a mapped `jsonb` array an `Elements` declaration
+  covers. A declaration must match a reference of the same kind (an `Elements` path
+  names a mapped `jsonb` property instead, because a type census cannot see inside one),
+  a retained reference must be the entity's whole single-column key (never a part of a
+  composite one), and a reference the closed grammar cannot express fails until the
+  grammar grows. A person reference held in a `string` or inside a `jsonb` document
+  other than a declared `Elements` path is invisible to the census.
+- **Planted violations:** each module's locator removed in turn; a synthetic module
+  whose audited entities hold a typed, an untyped, a contained and an unexpressible
+  reference, an unclassified plain `Guid`, a collection keyed by a person, a composite
+  key holding a person, a `uuid[]` and a `jsonb` collection of identifiers and an
+  identifier type no allowance names, with no locator; the same module with a wrong
+  kind, a stale path, another module's entity, the declared person part of the composite
+  key (still refused), the declared `jsonb` collection (accepted) and a retained
+  reference that is not the entity's key; and a second locator in one module. Both
+  allowance lists are checked against the real models, so removing an entry fails the
+  census.
+- **Canary coverage:** `AuditRedactionCanaryTests` generates, for every declaration of
+  every registered locator, a row in the capture's shape holding the subject's
+  identifier beside another person's at the declared path, runs the executor as
+  `learnstack_platform` and asserts exactly the subject's is redacted; its census fact
+  fails when a module with a locator has no canary run, and a shape its generator cannot
+  build fails the run. A real-capture case drives the interceptor for each shape.
+- **Source:** [ADR-0108 § 7](../decisions/0108-privileged-audit-redaction.md);
+  [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md);
+  [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
+- **Type:** model and composition-root census with planted violations, backed by the
+  integration canaries. **Kind:** both.
+- **Status:** **Implemented** (`UserReferenceLocatorCensusTests`, P03-10 Step 2).
+- **Test owners:**
+  [UserReferenceLocatorCensusTests.cs](../../backend/tests/LearnStack.Tests.Architecture/UserReferenceLocatorCensusTests.cs),
+  [AuditRedactionCanaryTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/AuditRedactionCanaryTests.cs).
+- **Phase:** 03 (P03-10).
+
+#### `No_Module_References_Another_Modules_User_Reference_Locator`
+
+- **Asserts:** no module assembly references another module's locator assembly, so the
+  locator registrations stay outside the four cross-module mechanisms of
+  [ADR-0010](../decisions/0010-cross-module-communication.md), as the participants do. A
+  planted reference from one module to another's locator assembly is named.
+- **Source:** [ADR-0108 § 7](../decisions/0108-privileged-audit-redaction.md);
+  [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Type:** compiled assembly-reference census with a planted violation. **Kind:** both.
+- **Status:** **Implemented** (`UserReferenceLocatorCensusTests`).
+- **Test owners:**
+  [UserReferenceLocatorCensusTests.cs](../../backend/tests/LearnStack.Tests.Architecture/UserReferenceLocatorCensusTests.cs).
+- **Phase:** 03 (P03-10).
 
 #### `OperationType_Enum_Matches_Catalog`
 
@@ -5531,12 +5639,17 @@ structural test proves — and what it does not.
 
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
-- **Asserts:** the production census closes the finite HTTP surface at 72 MVC
-  actions and 67 distinct `IRequest` roots (both totals asserted on the literal census
+- **Asserts:** the production census closes the finite HTTP surface at 96 MVC
+  actions and 91 distinct `IRequest` roots (both totals asserted on the literal census
   that the rule binds to production), including the public and authenticated
-  reads, the anonymous sign-in read, 23 protected keyed writes, native
-  session-scope admission and the eleven ADR-0099 federation actions, which reach
-  their requests only through `FederationOperationRunner`. It also
+  reads, the anonymous sign-in read, 37 protected keyed writes, native
+  session-scope admission, the eleven ADR-0099 federation actions, which reach
+  their requests only through `FederationOperationRunner`, the fifteen live
+  ADR-0106/ADR-0107 data-request actions (nine of them keyed, the person's account
+  closure filing among them; the ticket mint and the chunk read each sit on a
+  controller of their own, unkeyed), and the nine ADR-0106 § 9 retained-entry actions
+  on one controller (five keyed), each of which sends exactly the request its source
+  captured. It also
   checks the separate three exact GlobalSelf middleware routes. The canonical
   name is historical: administration includes writes, and sensitive reads can
   require a ReadWrite owner to commit MUST audit evidence. AccountSite and public
@@ -5819,8 +5932,10 @@ structural test proves — and what it does not.
   The EF leg bans `Organizations.Find` and `FindAsync`, which cannot express that
   composite key. The validator's tenant announcement and composite predicate are
   checked separately.
-- **SQL census:** eight direct runtime SQL subjects include the validator, job
-  lifecycle readers, identity/self-discovery readers and the awaited
+- **SQL census:** nine direct runtime SQL subjects include the validator, job
+  lifecycle readers, identity/self-discovery readers, the identity lifecycle reader's
+  platform form (many scopes in one statement on an entered platform scope's handle,
+  bound to its one executed call) and the awaited
   `OrganizationWriteStore.FindForUpdateAsync` composite-key lock followed by
   tenant-bound EF materialization. ADR-0047's bounded lifecycle inventory and
   bounds are the named enumeration exception. Two further composed page owners
@@ -6062,13 +6177,60 @@ structural test proves — and what it does not.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 5).
 - **Phase:** P03-9.
 
+#### `Only_The_Data_Request_Routes_And_Their_Owner_Name_The_Data_Request_Operator_Port_And_Only_It_Redacts`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `DataRequestOperatorOperations` in code (the port's name contains it, so the owner's
+  class is found too) are exactly the port, its one owner, the persistence composition
+  and the data-request routes; and the files that name the scope handle's
+  `RedactAuditAsync` in code are exactly the handle's interface, the scope, that owner
+  and the closure owner's Finalize part. Adding a caller of either is a deliberate edit
+  here, with its denied proof.
+- **Why it matters:** the inspection reads data requests across every tenant, and the
+  completion is the one way any code reaches the audit log's redactable columns. The
+  scope also refuses the redaction at run time to every admitted operation but the
+  erasure completion and the closure's Finalize, and each of those two the other's
+  plans; this rule keeps the set of files that could ask for it closed, so a second
+  caller cannot appear without review.
+- **Source:**
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8;
+  [ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 2.
+- **Type:** xUnit + source scan, with a planted holder of the port, of the concrete
+  owner and of a redaction call, and a mention in a comment that is not counted
+  (`The_Data_Request_Port_Census_Finds_A_Planted_Holder_Of_The_Port_The_Owner_Or_The_Redaction`).
+  **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-10 Step 2).
+- **Phase:** P03-10.
+
+#### `Only_The_Closure_Route_And_Its_Owner_Name_The_Closure_Operator_Port`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `AccountClosureOperatorOperations` in code (the port's name contains it, so the
+  owner's class is found too) are exactly the port, the owner's three parts (its
+  constructor, Begin and Finalize), the persistence composition and the closure routes'
+  file. Adding a caller is a deliberate edit here, with its denied proof.
+- **Why it matters:** a Begin makes a person's account stop working in every tenant and
+  cannot be undone, and a Finalize deletes the account at the identity provider; the
+  operator routes, after the gate, are the one way to either.
+- **Source:**
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7
+  and 8.
+- **Type:** xUnit + source scan, with a planted holder of the port and of the concrete
+  owner, and a mention in a comment that is not counted. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-10 Step 3).
+- **Phase:** P03-10.
+
 #### `Only_The_Operator_Services_Hold_The_Platform_Scope`
 
 - **Asserts:** the files, by their path under `backend/src`, that name
-  `IPlatformAdminScope` are exactly the interface, the scope, the persistence
-  composition and the operator services that perform an admitted act (today the
-  killswitch toggle, the delivery inspection and the federation owner). Adding a
-  service is a deliberate edit here, with its denied proof.
+  `IPlatformAdminScope` (the handle's name contains it) are exactly the interface, the
+  scope, the persistence composition and the operator services that perform an admitted
+  act (today the killswitch toggle, the delivery inspection, the federation owner, the
+  data-request owner and the account-closure owner with its Begin and Finalize parts),
+  and the code
+  that works on a handle such an owner entered and can enter none: the closure's fence
+  acquirer and Tenancy's lifecycle port and reader. Adding a file is a deliberate edit
+  here, with its denied proof.
 - **Why it matters:** a request handler holding the scope would enter a cross-tenant
   scope from a tenant request path.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.
@@ -6080,15 +6242,20 @@ structural test proves — and what it does not.
 
 - **Asserts:** the files, by their path under `backend/src`, that name
   `PlatformOperatorActExecutor` in code, comments stripped, are exactly the executor,
-  the registration beside the source it enters and the onboarding routes. A second
-  caller is a second route to an act; adding one is a deliberate edit here, with its
-  denied proof.
+  the registration beside the source it enters, the onboarding routes and the closure's
+  fan-out (`ClosureFanOut`), which runs one admitted `fan_out_closure` act per
+  participant group for Begin's owner. A second caller is a second route to an act;
+  adding one is a deliberate edit here, with its denied proof; the fan-out's is
+  `ClosureFanOutTests`' gate refusal, under which no group starts.
 - **Why it matters:** the executor installs a tenant context from an admission, so what
   may call it is what may run an operator act. The admission is the barrier, and this
   keeps the set of places that can spend one small and visible.
-- **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 1.
+- **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 1 and
+  Amendment 2,
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7.
 - **Type:** xUnit + source scan. **Kind:** structural.
-- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 2).
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 2; the
+  fan-out joined in P03-10 Step 3).
 - **Phase:** P03-9.
 
 #### `Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject`
@@ -6694,24 +6861,41 @@ the phase Status block owns packet state and qualification.
   instrumentation entries. Native preparation publishes a complete immutable
   page snapshot before rendering; the passive RSC facade exposes only that
   snapshot and its liveness assertion, never a credential, API operation or
-  preparation capability. The exact seven protected page views and their shared
-  render helpers have source-census and AST dirty controls against additional
-  asynchronous work, IO and framework background work, including transitive
-  aliases. Entry, member-list and current-scope continuations conceal upstream
-  cursor material and authenticate their distinct purposes.
-- **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
+  preparation capability. The exact protected page views, which the tests below pin
+  and this entry does not count, and their shared render helpers have source-census
+  and AST dirty controls against additional asynchronous work, IO and framework
+  background work, including transitive aliases. Entry, member-list,
+  current-scope and data-request continuations conceal upstream cursor material and
+  authenticate their distinct purposes. The data-request download relay keeps its
+  export ticket inside the relay, never in a URL, header, page or log; answers one
+  attachment only after the first chunk proves the bundle's geometry, or a refusal
+  before any byte; keeps one chunk in flight, zeroes each decoded buffer, and
+  destroys the connection on any later failure, so a short body never completes.
+- **Source:** ADR-0070/0071/0078/0079; ADR-0107 § 4; Security 11 § Tenant BFF sessions
+  and native entry and § Retained consent-subject admission.
 - **Type:** frontend source/production canaries. **Kind:** structural.
 - **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and
-  `src/test/public-boundaries.test.ts`, using the production graph and AST
-  analysis in `src/test/public-boundary-analysis.ts`; projection and cursor
-  controls in `src/server/auth/page-preload.test.ts` and
-  `src/server/auth/store-page-preload.test.ts`. Independent development canaries
-  live in `src/test/bff-development-diagnostics.test.ts` and
+  `src/test/public-boundaries.test.ts`, using the production graph and AST analysis in
+  `src/test/public-boundary-analysis.ts`; projection and cursor controls in
+  `src/server/auth/page-preload.test.ts` and
+  `src/server/auth/store-page-preload.test.ts`. Independent development canaries live in
+  `src/test/bff-development-diagnostics.test.ts` and
   `src/test/bff-development-diagnostics-counter.test.ts`; their test-owned process
-  controls live in `src/test/bff-proof-lifeline.test.ts`.
+  controls live in `src/test/bff-proof-lifeline.test.ts`. The download relay's controls
+  live in `src/server/auth/data-export-download.test.ts` and
+  `src/server/auth/native-data-request-http.test.ts`; the person's routes, owner modes
+  and cursor purposes through the real SDK in
+  `src/server/auth/native-data-request-routes.test.ts`,
+  `src/server/auth/native-data-request-client.test.ts` and
+  `src/test/bff-data-request-person-routes.test.ts`, the administrator's in
+  `src/test/bff-data-request-administration-routes.test.ts`, the refusal vocabulary in
+  `src/test/data-request-reasons.test.ts`, and the SDK wrappers' contract in
+  `packages/sdk/src/data-request-server.test.ts` and
+  `packages/sdk/src/data-request-administration-server.test.ts`.
 - **Status:** **Implemented** — frontend boundary, native protocol/canary and
   fixture-output controls named above.
-- **Phase:** P02b-7 Steps 1/3–5; P03-3 Steps 8–9 extend native entry and prepared views.
+- **Phase:** P02b-7 Steps 1/3–5; P03-3 Steps 8–9 extend native entry and prepared views;
+  P03-10 Step 4 adds the person's data-request document and its download relay.
 
 #### `Bff_Session_Refresh_And_Revocation_Have_One_Owner`
 
@@ -6905,9 +7089,13 @@ the phase Status block owns packet state and qualification.
   Role-read capability causes zero Role API calls. A legitimate missing own
   profile on a derived branch uses the site fallback. Failed AccountSite authority
   publishes only public failure data, without cached private fields or CSRF.
-  The exact twelve HTTP entries include seven protected views; the twelve
-  POST actions remain closed. Ordinary passive documents still preload without
-  idle/refresh writes, while HEAD and speculative prefetch avoid private preload.
+  The exact HTTP entry set, the protected views and the native documents among it,
+  and the closed POST set of Frontend Architecture § Native Entry and Administration
+  remain closed; nothing here counts them, the tests below pin them. Ordinary passive
+  documents still preload without idle/refresh writes, while HEAD and speculative
+  prefetch avoid private preload. Every data-request refusal reason the API documents
+  or emits maps to a closed localized sentence, on the person's document and on the
+  administrator's pages.
 - **Source:** ADR-0070/0078/0079; ADR-0054 dated auth extension; Security 11 § CSRF.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
@@ -6922,9 +7110,14 @@ the phase Status block owns packet state and qualification.
   `src/components/auth/admin-pages.test.tsx` covers explicit replacement of an
   unavailable stored preference through the existing native field values; the
   no-script browser journey exercises that required choice and verifies its POST.
+  The data-request forms and refusal completeness use
+  `src/server/auth/native-data-request-http.test.ts`,
+  `src/server/auth/data-request-html.test.ts` (the person) and
+  `src/server/auth/data-request-administration.test.ts` (the administrator).
 - **Status:** **Implemented** — native input/route controls above and the actual browser
   form/Origin and no-network startup cases in `TenantBffSessionTests`.
-- **Phase:** P02b-7 Steps 3–5; P03-3 Steps 8–9 extend native forms and finite page preparation.
+- **Phase:** P02b-7 Steps 3–5; P03-3 Steps 8–9 extend native forms and finite page
+  preparation; P03-10 Step 4 adds the data-request forms and documents.
 
 #### `Bff_Host_Cookies_And_History_Are_Isolated`
 
@@ -6935,7 +7128,7 @@ the phase Status block owns packet state and qualification.
   stored provider events. Real paginated entry JSON/HTML, stock-browser next/Back
   URLs/history and second-page selection keep subject/authority material private;
   the original disclosure has a real old-source negative control. Stopped-provider
-  public rendering remains independent. The seven prepared protected views retain
+  public rendering remains independent. The prepared protected views retain
   native forms when JavaScript is disabled. Actual stock-browser page checks
   require ready views and specific visible contents; an unavailable view retaining
   the wrapper/h1 fails the same guard. No-script profile save/sign-out runs on both
@@ -6955,10 +7148,16 @@ the phase Status block owns packet state and qualification.
   and `src/components/auth/session.test.tsx` cover fixed GET recovery, native forms
   and session/unsaved-edit behavior; `scripts/verify-bff-protocol.mjs` exercises
   the actual Next prepared views and `verify-bff-browser.mjs` the no-script flow.
+  The data-request document's guard, which restores the bare page or one retained
+  group's page and never a result, is covered by
+  `src/server/auth/data-request-html.test.ts`,
+  `src/server/auth/native-data-request-http.test.ts` and the observation of
+  `scripts/test-data-request-proof-view.mjs`.
 - **Status:** **Implemented** — `TenantBffSessionTests`, its real-chain/browser scripts
   and the stopped-provider public-demo lifecycle.
 - **Phase:** P02b-7 Step 5; P03-3 Step 9 extends selected views, no-script and history
-  controls. Phase 06 retains full browser OIDC end-to-end expansion. The Phase 03
+  controls; P03-10 Step 4 adds the data-request document's guard. Phase 06 retains
+  full browser OIDC end-to-end expansion. The Phase 03
   Status block owns current P03-3 qualification and review state.
 
 ## P02b-4 background-job obligations
@@ -7677,7 +7876,11 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   stable EventId through ordinary outbox/inbox and central typed Audit evidence.
   SystemActor differs from the affected account; provider time/result does not
   establish a tenant login. Duplicate/unknown commit, expired claim, closure,
-  overflow and Audit failure cannot duplicate, forge or silently lose success.
+  overflow and Audit failure cannot duplicate, forge or silently lose success. The
+  subscriber is the one caller of `AttachProviderEvent` and of `WithholdProviderEvent`,
+  which withdraws the observation of a person whose User is no longer Active
+  ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md)
+  §§ 7, 9).
 - **Source:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md),
   [Database](05-database.md#provider-event-intake-storage).
 - **Type:** real app/ingress-role isolation, concurrency, transport, Audit and
@@ -7902,9 +8105,9 @@ sign-in read). The
   `NetworkStream`, `ClientWebSocket`, `WebRequest`, `HttpWebRequest`, `WebClient`,
   `IHttpClientFactory`, `AddHttpClient` or a `Dns.` call) or the MailKit SMTP client
   (`SmtpClient`, the `MailKit` namespace) is on a named allow-list, each entry with its
-  reason: `FederationEgressFetcher`, the only fetcher of a tenant-supplied URL; four
+  reason: `FederationEgressFetcher`, the only fetcher of a tenant-supplied URL; five
   clients of a fixed, composition-configured tenant-realm origin
-  (`KeycloakFederationProvider`, `KeycloakIdentityEventProvider`,
+  (`KeycloakFederationProvider`, `KeycloakAccountRemoval`, `KeycloakIdentityEventProvider`,
   `TenantAuthenticationBackchannel`, `CurrentInvitationRecipientBackchannel`); and
   `SmtpEmailProvider`, the operator-configured SMTP host for invitation mail. An entry
   whose file no longer holds a transport fails as stale. Instrumentation, exception and
@@ -7924,6 +8127,100 @@ sign-in read). The
   [FederationProviderTests.cs](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/FederationProviderTests.cs).
 - **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
 - **Phase:** 03 (P03-8 Step 3; widened to every production source in review round 1).
+
+#### `Account_Removal_Client_Is_Held_Only_By_The_Adapter`
+
+- **Asserts:** the literal client identifier `learnstack-account-removal` appears in
+  production source only in `KeycloakAccountRemovalRoutes`, and the secret key
+  `AccountRemoval:ClientSecret` only in `KeycloakAccountRemoval`; every other caller
+  reaches the adapter through `AccountRemovalAdapterFactory`, so no other code holds the
+  `manage-users` client or its credential. Comments are set aside; a planted holder in
+  the API, the Identity Application and the federation adapter's directory is refused
+  and a prose-only mention is not.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure)
+  ("one new realm client with `manage-users`, its secret in `ISecretProvider`").
+- **Type:** source scan with planted holders. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Adapter_Admits_Only_The_Token_And_User_Routes`
+
+- **Asserts:** `KeycloakAccountRemovalRoutes` builds exactly two routes, the token
+  endpoint and `users/{id}`; no string literal in the adapter namespace names another
+  Admin, user, client, role, group, session, credential or flow path (the one admitted
+  literal is the `roles` token claim the adapter narrows), and no file but the routes and
+  the options builds or extends a URI. Planted routes in the directory, a planted URI
+  builder and a clean control are checked. The unit tests
+  `KeycloakAccountRemovalTests` check the same set behaviourally against a scripted
+  provider.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure).
+- **Type:** reflection plus source scan, with planted routes. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs);
+  [KeycloakAccountRemovalTests.cs](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Identity/KeycloakAccountRemovalTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Adapter_Sends_Only_The_Token_Post_And_The_User_Delete`
+
+- **Asserts:** no file of the adapter namespace names an `HttpMethod` other than POST
+  and DELETE, constructs an `HttpMethod`, or calls a verb-named `HttpClient` helper, and
+  the adapter file names both admitted verbs. The client's role can also create and
+  update users, so a PUT, a GET or a POST to `users` is not a call this class may
+  contain.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure).
+- **Type:** source scan with planted verbs and a clean control. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Adapter_Does_Not_Read_DeploymentMode`
+
+- **Asserts:** no source in `LearnStack.Infrastructure.Identity.AccountRemoval` names
+  `DeploymentMode`, and no field or constructor parameter of its types has that type;
+  the composition root alone selects the adapter and the Development loopback rule.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure),
+  [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md).
+- **Type:** source scan and reflection, with a planted read. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Port_Has_One_Method_And_A_Closed_Set_Of_Holders`
+
+- **Asserts:** `IIdentityProviderAccountRemoval` declares exactly one deleting method,
+  `RemoveAsync`, beside one synchronous local preflight, `CanRemove`, which returns a
+  `bool` and so cannot reach the provider, and no property; production source names the
+  port, its refusing default, the adapter or its factory only in the declaration, the
+  default, the adapter, the factory, the API composition, the Identity foundation
+  registration and the closure owner's constructor file, whose Finalize is the one
+  caller of the deletion the ADR admits; the Finalize part calls the port through the
+  owner's field and names no port type.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure)
+  ("exactly one method" and a single caller for a `manage-users` credential).
+- **Type:** reflection plus source scan with planted holders. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Port_Is_Called_Only_From_The_Closure_Finalize`
+
+- **Asserts:** the identifier `accountRemoval`, the closure owner's captured port,
+  appears in production source only in the owner's partial files (the constructor,
+  Begin and Finalize parts), only as the receiver of a call or in the constructor's
+  parameter declaration (never aliased, passed on or captured), and
+  `accountRemoval.RemoveAsync(` is called exactly once, in the Finalize part. The
+  port-holder rule above confines the files that name a port type; this one covers the
+  files that reach the port without naming one, which a second call in Begin would
+  otherwise pass. Comments and literals are set aside; planted calls in Begin, a second
+  and a missing call in Finalize, an alias, an argument, a capture, a method group and
+  a foreign file are refused, and a prose-only mention is not.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure)
+  (a single caller for a `manage-users` credential).
+- **Type:** source scan, planted departures and a clean control. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3, review round 1).
 
 #### `Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`
 
@@ -7973,3 +8270,110 @@ sign-in read). The
   [FederationHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationHttpTests.cs),
   [IdentitySelfEntryHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/IdentitySelfEntryHttpTests.cs).
 - **Phase:** 03 (P03-8 Step 4, review round 2).
+
+## P03-10 data request controls
+
+**Derives from:**
+[ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) and
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md). Canonical
+names for the package's obligations are assigned with the step that introduces them.
+
+#### `Own_Data_Request_Scope_Is_Host_And_Subject_Confined`
+
+- **Asserts:** `fn_identity_own_data_request_scopes` returns only the verified actor's
+  scope groups in the host's tenant (on an organization host, only that organization's
+  group), from Memberships of any status and from requests, and nothing of another
+  person, tenant or branch; it refuses every state and argument outside its two closed
+  modes, executes for `learnstack_app` alone, and has one caller, the confined lookup on
+  its own read-only owner. Its two owner arms admit only the function's own entry state
+  and stay shut to every session and every other role. The `OwnDataRequestEntry` kind is
+  admitted only by a live `OwnDataRequestScopeWitness` under the
+  `HostAndOwnDataRequestScope` origin, which the fifteenth logical tenant setter
+  consumes on a fresh owner announcing exactly the witness's group; the `OwnDataRequest`
+  kind requires the actor's Active Membership in exactly the announced group. The native
+  retained-entry operations (P03-10 Step 1, unit 4b; the closure filing, Step 3) close
+  the chain: exactly nine selector-free operations and the receipt read of their five
+  keyed ones carry the `OwnDataRequestEntry` kind; `OwnDataRequestSubjectSource` is the
+  one minter and the one registered `IOwnDataRequestScopeSource`, the one caller of the
+  lookup and the one source of the captured request feature; `TenantResolverMiddleware`
+  is the one builder of the context; and through the actual Program a Suspended person,
+  a person whose only Membership is Revoked and a person in several groups list, file,
+  cancel and download in exactly their own groups on the real host, while another
+  person's request, an unretained group, a selector, a missing native source, a
+  non-Active binding and a ticket of the other path are refused.
+- **Source:**
+  [ADR-0106 § 4 and § 9](../decisions/0106-subject-data-requests-authority-and-status.md),
+  [Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope),
+  [Security § The out-of-band setters](11-security.md#the-out-of-band-setters).
+- **Type:** real app-role PostgreSQL behaviour, refusals, ACL and policy oracle with a
+  dirty probe of the arms; compiled minter, binder, owner and caller censuses with
+  planted minters and binders; coordinator and evaluator behaviour for both kinds; the
+  retained entry's syntax-confined authority exceptions with substituted values, its
+  request-feature binding with planted replacements, its closed paths and strict input,
+  and its HTTP behaviour end to end. **Kind:** both.
+- **Status:** **Implemented** (`OwnDataRequestScopeTests`); companion owners below.
+- **Test owners:**
+  [OwnDataRequestScopeTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/OwnDataRequestScopeTests.cs),
+  [OwnDataRequestScopeConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/OwnDataRequestScopeConventionTests.cs),
+  [OwnDataRequestPolicyTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/OwnDataRequestPolicyTests.cs),
+  [OwnDataRequestEntryInputTests.cs](../../backend/tests/LearnStack.Tests.Unit/Api/Authentication/OwnDataRequestEntryInputTests.cs),
+  [AuthenticationAuthorityTests.DataRequest.cs](../../backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.DataRequest.cs),
+  [DataRequestHttpTests.RetainedEntry.cs](../../backend/tests/LearnStack.Tests.Integration/Database/DataRequestHttpTests.RetainedEntry.cs).
+- **Phase:** 03 (P03-10, retained own scope).
+
+#### `Erasure_Operations_Run_Only_Under_The_Erasure_Witness`
+
+- **Asserts:** the erasure operations of `Membership` (`RemoveAssignmentsForErasure`,
+  `ClearProfileForErasure`, `RevokeForErasure`) and `Invitation` (`RevokeForErasure`)
+  take a `DataErasureWitness`, which is sealed and privately constructed, captured only
+  from a fulfilling erasure request, and minted only by `DataErasureService`'s one
+  nested source; each operation has the erasure service as its one caller. A planted
+  extra minter and a planted extra caller are each named. The database side is the
+  contextual guard's one exception: a clearing UPDATE of a Revoked Membership's profile
+  passes only with the person's User fence and the tenant key held exclusively and the
+  person's erasure of that group `fulfilling` and naming that Membership in its frozen
+  snapshot, and each condition removed alone is refused as the application role.
+- **Source:**
+  [ADR-0107 § 5](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Type:** compiled minter and caller censuses with planted probes; real app-role
+  PostgreSQL refusals of each witness condition; domain and job behaviour end to end.
+  **Kind:** both.
+- **Status:** **Implemented** (`DataErasureWitnessConventionTests`); companion owners
+  below.
+- **Test owners:**
+  [DataErasureWitnessConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/DataErasureWitnessConventionTests.cs),
+  [DataErasureGuardTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/DataErasureGuardTests.cs),
+  [DataErasureDomainTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/DataErasureDomainTests.cs),
+  [DataErasureExecutionTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/DataErasureExecutionTests.cs).
+- **Phase:** 03 (P03-10, tenant erasure).
+
+#### `Every_Module_With_A_Person_Reference_Registers_One_User_Data_Participant`
+
+- **Asserts:** every module whose model maps a person reference (a `UserId` or
+  `MembershipId` property, or creator, updater and deleter attribution on a
+  tenant-owned entity) registers exactly one `IUserDataParticipant` through the
+  composition root, from inside its own boundary. A module that stops registering, a
+  second participant in one module and a participant outside every module are each named
+  by a planted violation.
+- **Source:**
+  [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Type:** composition-root census over the compiled registrations with planted
+  violations. **Kind:** both.
+- **Status:** **Implemented** (`UserDataParticipantCensusTests`).
+- **Test owners:**
+  [UserDataParticipantCensusTests.cs](../../backend/tests/LearnStack.Tests.Architecture/UserDataParticipantCensusTests.cs).
+- **Phase:** 03 (P03-10, export engine).
+
+#### `No_Module_References_Another_Modules_User_Data_Participant`
+
+- **Asserts:** no module assembly references another module's participant assembly, so
+  the participant registrations stay outside the four cross-module mechanisms of
+  [ADR-0010](../decisions/0010-cross-module-communication.md). A planted reference from
+  one module to another's participant assembly is named.
+- **Source:**
+  [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Type:** compiled assembly-reference census with a planted violation. **Kind:** both.
+- **Status:** **Implemented** (`UserDataParticipantCensusTests`).
+- **Test owners:**
+  [UserDataParticipantCensusTests.cs](../../backend/tests/LearnStack.Tests.Architecture/UserDataParticipantCensusTests.cs).
+- **Phase:** 03 (P03-10, export engine).

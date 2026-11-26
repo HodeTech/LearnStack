@@ -7,7 +7,15 @@ namespace LearnStack.Tests.Architecture;
 public sealed partial class OperationPolicyOwnershipTests
 {
     private const string ConsentHttpResponse = """
-        policy.Kind == OperationPolicyKind.OwnConsentEntry
+        policy.Kind == OperationPolicyKind.OwnDataRequestEntry
+            ? http.Features.Get<OwnDataRequestSubjectSource>() is { } dataRequest && dataRequest.IsCurrent(http)
+                && dataRequest.EffectiveRequestType is { } dataRequestType
+                ? ProtectedAdministrationDescriptor.ForRequest(policy.RequestType) is not null
+                    ? await ProtectedReplayHttpAdmission.AuthorizeAsync(http, policy, classifier,
+                        tenantContext, store, candidates, operations)
+                    : await operations().CheckHttpAsync(dataRequestType, http.GetEndpoint()!, http.RequestAborted)
+                : LearnStack.SharedKernel.Results.Result.Fail<LearnStack.SharedKernel.Results.None>(TenantContextFactory.Refused)
+        : policy.Kind == OperationPolicyKind.OwnConsentEntry
             ? http.Features.Get<ConsentSubjectSource>() is { } consent && consent.IsCurrent(http)
                 && consent.EffectiveRequestType is { } consentType
                 ? ProtectedAdministrationDescriptor.ForRequest(policy.RequestType) is not null
@@ -36,6 +44,11 @@ public sealed partial class OperationPolicyOwnershipTests
             ("http.GetEndpoint()!", "new object()"),
             ("http.RequestAborted", "CancellationToken.None"),
             ("ProtectedAdministrationDescriptor.ForRequest(policy.RequestType)", "ProtectedAdministrationDescriptor.ForRequest(consentType)"),
+            // ADR-0106 § 9: the retained data-request entry reaches HTTP only with its own captured current request.
+            ("dataRequest.IsCurrent(http)", "dataRequest.IsCurrent(new DefaultHttpContext())"),
+            ("dataRequest.EffectiveRequestType", "policy.RequestType"),
+            ("CheckHttpAsync(dataRequestType,", "CheckHttpAsync(policy.RequestType,"),
+            ("policy.Kind == OperationPolicyKind.OwnDataRequestEntry", "policy.Kind == OperationPolicyKind.OwnDataRequest"),
         })
         {
             var dirty = source.Replace(before, after, StringComparison.Ordinal);
@@ -66,7 +79,7 @@ public sealed partial class OperationPolicyOwnershipTests
         var method = type?.Members.OfType<MethodDeclarationSyntax>().SingleOrDefault(node => node.Identifier.ValueText == "HandleAsync");
         var response = method?.DescendantNodes().OfType<VariableDeclaratorSyntax>().SingleOrDefault(node => node.Identifier.ValueText == "response")?.Initializer?.Value;
         return response is not null && SyntaxFactory.AreEquivalent(response, SyntaxFactory.ParseExpression(ConsentHttpResponse))
-            && method!.DescendantNodes().OfType<InvocationExpressionSyntax>().Count(node => node.Expression.ToString() == "operations().CheckHttpAsync") == 2;
+            && method!.DescendantNodes().OfType<InvocationExpressionSyntax>().Count(node => node.Expression.ToString() == "operations().CheckHttpAsync") == 3;
     }
 
     private static bool ReplayHttpAuthorizationCallsAreConfined(string source)

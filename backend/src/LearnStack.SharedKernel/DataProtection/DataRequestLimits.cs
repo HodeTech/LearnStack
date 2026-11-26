@@ -1,0 +1,155 @@
+namespace LearnStack.SharedKernel.DataProtection;
+
+/// <summary>
+/// The fixed bounds of subject data requests, each owned by the ADR section named beside it.
+/// The database CHECKs and guards repeat the same numbers; a change here is a migration.
+/// </summary>
+public static class DataRequestLimits
+{
+    /// <summary>The cancellable window before an erasure or closure executes (ADR-0106 § 11).</summary>
+    public static readonly TimeSpan CancellationWindow = TimeSpan.FromHours(24);
+
+    /// <summary>How long a completed export artifact stays readable (ADR-0107 § 4).</summary>
+    public static readonly TimeSpan ArtifactLifetime = TimeSpan.FromDays(7);
+
+    /// <summary>How long a download ticket authorizes chunk reads (ADR-0107 § 4).</summary>
+    public static readonly TimeSpan TicketLifetime = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// How long after it fell due a request may stay <c>fulfilling</c> before the operator inspection lists it as
+    /// stuck (ADR-0107 § 8). An export or an erasure job commits its whole run in one transaction, so a durable
+    /// <c>fulfilling</c> is a run that died, or a closure's fan-out erasure whose job has not finished. Two hours
+    /// outlast the job runtime's whole retry schedule (five waits totalling about 66 minutes and six attempts of at
+    /// most five minutes each), so a request listed here waits for no retry that is still coming. Only the inspection reads it;
+    /// no database check repeats it.
+    /// </summary>
+    public static readonly TimeSpan StuckFulfillingAfter = TimeSpan.FromHours(2);
+
+    /// <summary>
+    /// The most unconsumed, unexpired download tickets one session binding may hold over one artifact: a download
+    /// in progress, a retry and one spare. The next mint in that session waits for one to be consumed by its final
+    /// chunk or to expire (<see cref="TicketLifetime"/>); a ticket left open by a credential since refreshed does
+    /// not count against the new one.
+    /// </summary>
+    public const int MaximumOpenTicketsPerBinding = 3;
+
+    /// <summary>
+    /// The most download tickets ever minted over one artifact, consumed or not. A ticket row and its MUST audit row
+    /// are permanent receipts, so the artifact's downloads are bounded; past the bound the artifact is downloaded no
+    /// more and a new export is filed.
+    /// </summary>
+    public const int MaximumTicketsPerArtifact = 20;
+
+    /// <summary>The most plaintext one encrypted chunk holds (ADR-0107 § 4: 128 KiB).</summary>
+    public const int ChunkPlaintextBytes = 128 * 1024;
+
+    /// <summary>AES-256-GCM nonce length; a fresh nonce per chunk (ADR-0107 § 4).</summary>
+    public const int NonceBytes = 12;
+
+    /// <summary>AES-256-GCM authentication tag length.</summary>
+    public const int TagBytes = 16;
+
+    /// <summary>The key length of every key in the export key ring.</summary>
+    public const int KeyBytes = 32;
+
+    /// <summary>The most keys the export key ring may hold (ADR-0107 § 4: one to four).</summary>
+    public const int MaximumKeyVersions = 4;
+
+    /// <summary>The longest key-version label, as the invitation envelope ring spells it.</summary>
+    public const int MaximumKeyVersionLength = 32;
+
+    /// <summary>The default bundle ceiling, <c>DataExport:MaxBytes</c> (ADR-0107 § 4).</summary>
+    public const long DefaultMaximumBundleBytes = 16L * 1024 * 1024;
+
+    /// <summary>The largest bundle ceiling the setting may name (ADR-0107 § 4: 64 MiB).</summary>
+    public const long MaximumBundleBytes = 64L * 1024 * 1024;
+
+    /// <summary>The most chunks an artifact can have at the largest ceiling.</summary>
+    public const int MaximumChunkCount = (int)(MaximumBundleBytes / ChunkPlaintextBytes);
+
+    /// <summary>The audit section's cap inside one bundle (ADR-0107 § 3: 8 MiB).</summary>
+    public const long AuditSectionBytes = 8L * 1024 * 1024;
+
+    /// <summary>
+    /// The cap on the invitations a person issued inside the Identity section, newest first: unlike the
+    /// invitations a person accepted it grows with administrative work, so it truncates with a stated
+    /// <c>truncated</c> entry rather than fail the request with <c>export_too_large</c>.
+    /// </summary>
+    public const long IssuedInvitationsCollectionBytes = 4L * 1024 * 1024;
+
+    /// <summary>The most Memberships one request's frozen snapshot may name.</summary>
+    /// <remarks>
+    /// A person holds at most one current Membership per group; the rest are Revoked tombstones
+    /// of earlier admissions. The bound keeps the snapshot a bounded row, not a list that grows
+    /// without limit.
+    /// </remarks>
+    public const int MaximumSnapshotMemberships = 256;
+
+    /// <summary>The most participants one request's progress record may name.</summary>
+    public const int MaximumParticipants = 32;
+
+    /// <summary>The longest participant key.</summary>
+    public const int MaximumParticipantKeyLength = 32;
+
+    /// <summary>The smallest bundle ceiling the setting may name; below it the bundle envelope alone would not fit.</summary>
+    public const long MinimumBundleBytes = 1L * 1024 * 1024;
+
+    /// <summary>
+    /// The bytes of the bundle ceiling held back for the envelope's closing structure: the remaining
+    /// empty sections, the truncation statement and the closing braces, so the finished document never
+    /// exceeds the ceiling a record was admitted under.
+    /// </summary>
+    public const int BundleTailReserveBytes = 16 * 1024;
+
+    /// <summary>The longest collection name inside one export section.</summary>
+    public const int MaximumCollectionNameLength = 32;
+
+    /// <summary>
+    /// The most truncated collections one bundle, and so one artifact's receipt, may state
+    /// (ADR-0107 § 3); the receipt column's CHECK repeats it.
+    /// </summary>
+    public const int MaximumTruncatedCollections = 32;
+
+    /// <summary>The largest record count a truncation statement may carry: JSON's exact-integer range.</summary>
+    public const long MaximumTruncationCount = 9_007_199_254_740_991;
+
+    /// <summary>Whether a collection name is a closed lower snake_case token of the bounded length.</summary>
+    public static bool IsCollectionName(string? name) =>
+        name is { Length: > 0 and <= MaximumCollectionNameLength }
+        && name[0] is >= 'a' and <= 'z'
+        && name.All(character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
+
+    /// <summary>
+    /// Whether a truncation key names one collection of one section: <c>participant.collection</c>, each half
+    /// a closed token, so the receipt names a collection and never a value.
+    /// </summary>
+    public static bool IsTruncationKey(string? key)
+    {
+        if (key is null)
+        {
+            return false;
+        }
+
+        var separator = key.IndexOf('.', StringComparison.Ordinal);
+        return separator > 0 && IsParticipantKey(key[..separator]) && IsCollectionName(key[(separator + 1)..]);
+    }
+
+    /// <summary>The number of chunks a bundle of <paramref name="byteCount"/> plaintext bytes occupies.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The bundle is empty or above the largest ceiling.</exception>
+    public static int ChunkCountFor(long byteCount) =>
+        byteCount is < 1 or > MaximumBundleBytes
+            ? throw new ArgumentOutOfRangeException(nameof(byteCount), "The bundle size is outside the supported range.")
+            : (int)((byteCount + ChunkPlaintextBytes - 1) / ChunkPlaintextBytes);
+
+    /// <summary>Whether a participant key is a closed lower snake_case token of the bounded length.</summary>
+    public static bool IsParticipantKey(string? key) =>
+        key is { Length: > 0 and <= MaximumParticipantKeyLength }
+        && key[0] is >= 'a' and <= 'z'
+        && key.All(character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
+
+    /// <summary>Whether a key-version label matches the export ring's spelling.</summary>
+    public static bool IsKeyVersion(string? version) =>
+        version is { Length: > 0 and <= MaximumKeyVersionLength }
+        && version.All(character => character is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z')
+            or (>= '0' and <= '9') or '_' or '-');
+}

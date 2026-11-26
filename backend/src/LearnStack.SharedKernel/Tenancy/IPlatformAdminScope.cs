@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Runtime.CompilerServices;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Platform;
 
@@ -100,6 +101,23 @@ public interface IPlatformAdminScopeHandle : IAsyncDisposable
     /// The row could not be written or committed, so the effect must not start.
     /// </exception>
     Task WriteIntentAsync(PlatformResult intent, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Redacts the subject's audit rows for <paramref name="plan"/> on the work transaction, through the one
+    /// Audit-owned executor, and returns its closed report (ADR-0108 § 2).
+    /// </summary>
+    /// <remarks>
+    /// The statements above cannot name <c>audit_log</c>, so this is the only way a scope reaches it, and only an
+    /// operation ADR-0108 sanctions holds it, for its own plans: <c>complete_erasure</c> an erasure's, and the closure's
+    /// Finalize a closure's tenant and sentinel passes. Any other admission or pairing is refused before anything runs.
+    /// It is a write like the others: it runs before the result row, a failure leaves the scope only to be abandoned,
+    /// and the redaction commits with what follows it on its transaction or not at all: an erasure's change and result
+    /// row, or the intent row a closure's Finalize writes at its checkpoint (ADR-0108 § 8).
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// The scope's operation may not redact the plan, the result row is already written, or no executor is registered.
+    /// </exception>
+    Task<AuditRedactionReport> RedactAuditAsync(AuditRedactionPlan plan, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Writes the act's MUST result row on the work transaction, so it commits with the

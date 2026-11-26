@@ -185,7 +185,7 @@ manual ledger deletion, history reset, reduced retention or tenant-copy purge.
 
 | Realm | Population | Clients |
 |-------|------------|---------|
-| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account; `learnstack-event-reader`: confined history reader; `learnstack-federation-admin`: confined federation adapter ([below](#federation-administration-client)); `account` and `account-console`: retired, disabled |
+| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account; `learnstack-event-reader`: confined history reader; `learnstack-federation-admin`: confined federation adapter ([below](#federation-administration-client)); `learnstack-account-removal`: confined closure account deletion ([below](#account-removal-client)); `account` and `account-console`: retired, disabled |
 | `learnstack-hub` | Platform operators | `learnstack-hub-web`: public PKCE, the portal's; `learnstack-operator`: public PKCE for LearnStack's platform surface, audience `learnstack-platform`, 15-minute access tokens, MFA step-up |
 
 The `learnstack-hub` realm's browser flow is `browser-loa`: password at level 1, a
@@ -938,6 +938,52 @@ refuses; enter its ASCII (punycode) form
 ([ADR-0099 Amendment 5](../../docs/decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)).
 Keycloak's own later calls to the configured token and JWKS endpoints follow DNS;
 production egress policy for the Keycloak process belongs to Phase 11.
+
+## Account removal client
+
+[ADR-0107 § 7](../../docs/decisions/0107-data-request-fulfillment-and-account-closure.md)
+adds `learnstack-account-removal`, the confidential service client the API's confined
+account-removal adapter alone uses, and only in the last step of a global account
+closure. It has the same shape as the
+[federation administration client](#federation-administration-client): no browser,
+password, implicit or full-scope flow, no default or optional client scopes, one local
+mapper that emits only `realm-management` roles into access tokens, and exactly the
+`realm-management/manage-users` role as its role and scope binding. The pinned
+provider's automatic `service_account` scope, default realm-role assignment and
+default-group memberships are removed from a newly created client only.
+
+**That role is realm-wide and is not only deletion.** `manage-users` can create and
+update users, set their attributes and required actions, and reset their credentials,
+in the one realm every tenant shares. A leaked secret therefore reaches every tenant's
+users. The adapter confines what LearnStack sends (one DELETE of one validated user
+identifier), not what the credential could do. The
+[runbook](../../docs/runbooks/account-removal-client.md) owns the blast radius,
+rotation and leak response.
+
+- **Secret.** The export carries only the placeholder
+  `${KEYCLOAK_ACCOUNT_REMOVAL_SECRET}`. Compose requires the variable (`:?`), and the
+  selected private environment must declare `KEYCLOAK_ACCOUNT_REMOVAL_SECRET` exactly
+  once: 16 to 1,024 bytes, not the provider's mask literal `**********`, not beginning
+  `${`, and distinct from the web, admin, event-reader and federation admin secrets.
+  Reconciliation refuses with `missing_account_removal_secret` when it is absent.
+  An existing private `.env` must add it before `make dev` will start: compose's `:?`
+  guard stops the provider without it. It should also add the same value as
+  `AccountRemoval__ClientSecret`; nothing stops `make dev` without it, but the API then
+  keeps the refusing default and refuses every first Begin of a closure. Reconciliation
+  refuses a different value.
+- **API.** The API reads the same value as `AccountRemoval__ClientSecret`. When the
+  private file declares both, they must be identical. Without the API value the port
+  keeps its fail-closed default and refuses every call; nothing reaches the provider.
+  The managed launcher behind `make public-api` and `make demo` hands the API a closed
+  inventory that carries no `AccountRemoval__*`, so under it no closure can begin;
+  the real-provider proof runs against the test fixtures.
+- **Continuity.** Reconciliation creates the client on a realm that lacks it and
+  verifies an existing one exactly. An existing secret that differs refuses with
+  `secret_conflict`; an extra role, scope, mapper or flow refuses too. Nothing is
+  rotated, repaired or deleted. A partial client left by a fault is deleted by hand
+  in the Admin Console and recreated by the next run, as for the federation client.
+- **Token.** The adapter refuses any token that is not from this client, this realm
+  and exactly `manage-users`, before any Admin call.
 
 ## What does not live here
 

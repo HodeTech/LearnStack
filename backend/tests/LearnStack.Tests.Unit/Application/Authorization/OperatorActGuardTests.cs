@@ -4,6 +4,7 @@ using LearnStack.Application.Audit;
 using LearnStack.Application.Authorization;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Identity.Application;
+using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -159,6 +160,7 @@ public sealed class OperatorActGuardTests
     [InlineData("announced_elsewhere")]
     [InlineData("not_announced")]
     [InlineData("global_identity")]
+    [InlineData("announced_with_an_organization")]
     public async Task A_Transaction_That_Is_Not_The_Ordinary_Announced_Owner_Is_Refused(string change)
     {
         using var rig = new Rig();
@@ -176,6 +178,11 @@ public sealed class OperatorActGuardTests
                         .Returns(new TenantContextAnnouncement(1, TenantId.From(Guid.CreateVersion7()), null));
                     break;
                 case "not_announced": rig.Unit.GetTenantContextAnnouncement(Arg.Any<DbTransaction?>()).Returns((TenantContextAnnouncement?)null); break;
+                case "announced_with_an_organization":
+                    // The tenant's ambient context with no organization, on a transaction that announced one: not its owner.
+                    rig.Unit.GetTenantContextAnnouncement(Arg.Any<DbTransaction?>())
+                        .Returns(new TenantContextAnnouncement(1, Tenant, OrganizationId.From(Guid.CreateVersion7())));
+                    break;
                 default: rig.GlobalUnit.IsGlobalIdentityTransaction.Returns(true); break;
             }
 
@@ -299,6 +306,68 @@ public sealed class OperatorActGuardTests
         (rig.EvidenceWrites().Length > 0).Should().Be(writes);
     }
 
+    /// <summary>
+    /// ADR-0102 Amendment 2: a closure's fan-out runs in its participant group's organization. The guard admits a context
+    /// that names an organization only for that operation, by reference, and only on a transaction that announced the same
+    /// tenant and organization; the tenant-wide group of the same act announces none.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_Closure_Fan_Out_Is_Admitted_In_Its_Announced_Group(bool organization)
+    {
+        using var rig = new Rig { Operation = PlatformOperations.ClosureFanOut };
+        var group = organization ? OrganizationId.From(Guid.CreateVersion7()) : (OrganizationId?)null;
+        rig.Announce(group);
+        var request = new FanOutClosureCommand(UserId.From(Guid.CreateVersion7()), group);
+
+        await rig.RunAsync(request, async () =>
+        {
+            rig.Guard.RequireLiveAct(request).IsSuccess.Should().BeTrue();
+            var admission = await rig.Guard.AdmitAsync(request, Plan(), default);
+            admission.IsSuccess.Should().BeTrue();
+            rig.Guard.RequireCurrent(admission.Value!).IsSuccess.Should().BeTrue();
+            return Result.Ok(None.Value);
+        });
+
+        await rig.Locks.Received(1).AcquireAsync(Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The organization's admission is the fan-out's alone, and only for the group its transaction announced: an onboarding
+    /// act in an organization context, and a fan-out whose transaction announced another organization or none, are each
+    /// refused before a lock.
+    /// </summary>
+    [Theory]
+    [InlineData("onboarding_operation")]
+    [InlineData("announced_another_organization")]
+    [InlineData("announced_no_organization")]
+    public async Task An_Organization_Is_Admitted_Only_For_The_Fan_Out_On_Its_Own_Announcement(string variant)
+    {
+        using var rig = new Rig
+        {
+            Operation = variant == "onboarding_operation" ? PlatformOperations.TenantProvision : PlatformOperations.ClosureFanOut,
+        };
+        var group = OrganizationId.From(Guid.CreateVersion7());
+        rig.Announce(group);
+        if (variant == "announced_another_organization")
+            rig.Unit.GetTenantContextAnnouncement(Arg.Any<DbTransaction?>())
+                .Returns(new TenantContextAnnouncement(1, Tenant, OrganizationId.From(Guid.CreateVersion7())));
+        else if (variant == "announced_no_organization")
+            rig.Unit.GetTenantContextAnnouncement(Arg.Any<DbTransaction?>()).Returns(new TenantContextAnnouncement(1, Tenant, null));
+        var request = new FanOutClosureCommand(UserId.From(Guid.CreateVersion7()), group);
+        var live = true;
+
+        await rig.RunAsync(request, () =>
+        {
+            live = rig.Guard.RequireLiveAct(request).IsSuccess;
+            return Task.FromResult(Result.Ok(None.Value));
+        });
+        await rig.ExpectRefusalAsync(request, () => request);
+
+        live.Should().BeFalse();
+    }
+
     [Fact]
     public async Task A_Plan_For_Another_Tenant_Is_Not_Held_For_This_Act()
     {
@@ -378,6 +447,16 @@ public sealed class OperatorActGuardTests
 
         public AuthorizationSourceKind SourceKind { get; set; } = AuthorizationSourceKind.PlatformOperator;
 
+        /// <summary>The operation the operator descriptor is minted for.</summary>
+        public PlatformOperation Operation { get; set; } = PlatformOperations.TenantProvision;
+
+        /// <summary>The context and its transaction's announcement, for <paramref name="organization"/>'s group of the tenant.</summary>
+        public void Announce(OrganizationId? organization)
+        {
+            Context.OrganizationId.Returns(organization);
+            Unit.GetTenantContextAnnouncement(Arg.Any<DbTransaction?>()).Returns(new TenantContextAnnouncement(1, Tenant, organization));
+        }
+
         public Task<Result<None>> RunAsync<TRequest>(TRequest request, Func<Task<Result<None>>> body) where TRequest : notnull =>
             _coordinator.ExecuteRequestAsync<TRequest, Result<None>>(request, body);
 
@@ -412,7 +491,7 @@ public sealed class OperatorActGuardTests
             return rig.SourceKind == AuthorizationSourceKind.PlatformOperator
                 ? ForOperation(
                     AuthorizationSourceKind.PlatformOperator, requestType, context, null,
-                    PlatformOperatorAttribution.From(TestPlatformAdmissions.Admission(PlatformOperations.TenantProvision, issuedAt: Now)))
+                    PlatformOperatorAttribution.From(TestPlatformAdmissions.Admission(rig.Operation, issuedAt: Now)))
                 : ForOperation(AuthorizationSourceKind.Seed, requestType, context);
         }
 

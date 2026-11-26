@@ -406,3 +406,7 @@ The audit-coverage standard already treats `platform-admin` as MUST; no MUST/SHO
 tier change. Architecture test `OperationType_Enum_Matches_Catalog` is added to assert
 the enum members match the OperationType list in
 [18-audit-coverage.md § Operation Types](../standards/18-audit-coverage.md).
+
+### 2026-11-22 — Erasure redaction path; no `UserGdprDeletedIntegrationEvent`
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) settle the redaction this record sketches. No `UserGdprDeletedIntegrationEvent` or handler is introduced: the privileged redaction is an operator act on the platform scope through one Audit-owned executor and module `IUserReferenceLocator` declarations, and the result is reported with the rows and references that survive. Where this record names the event or a handler consuming it, read the operator act of ADR-0108. The Decision, Status, Date and every other section of this record are unchanged.

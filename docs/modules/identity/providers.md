@@ -1,8 +1,9 @@
 # Identity — Provider Adapters
 
 **Derives from:** [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md),
-[ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
-and [ADR-0099](../../decisions/0099-confined-tenant-federation.md).
+[ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md),
+[ADR-0099](../../decisions/0099-confined-tenant-federation.md) and
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md).
 These are the bounded invitation, retained-event and tenant-federation provider
 contracts; the [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns
 implementation and qualification. Acceptance is not evidence of a configured production
@@ -219,6 +220,31 @@ An entry admits the host for every tenant. It is composition configuration read 
 at startup; tenant input never extends it. Keycloak's own later fetches follow DNS;
 only deployment egress policy bounds them (Phase 11).
 
+## Account removal adapter
+
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)
+decides this boundary: the last effect of a global account closure deletes the person's
+identity-provider account. The [runbook](../../runbooks/account-removal-client.md) owns
+provisioning, rotation and leak response.
+
+| Boundary | Contract |
+|---|---|
+| Port | SharedKernel `IIdentityProviderAccountRemoval`, one deleting method (`RemoveAsync`) and the pure preflight `CanRemove`; the sole caller of the deletion is the closure's Finalize, pinned by an architecture rule. Outcomes: removed, absent (success), refused, unavailable, uncertain |
+| Default | SharedKernel `RefusingIdentityProviderAccountRemoval`, registered by the Identity foundation: every call is refused and nothing is sent |
+| Adapter | Internal sealed `KeycloakAccountRemoval` in `LearnStack.Infrastructure.Identity.AccountRemoval`; direct HTTP, no SDK |
+| Selection | API `AccountRemovalComposition` replaces the default only when `AccountRemoval:ClientSecret` is configured; `AccountRemovalAdapterFactory` is the only entry. Issuer from `Authentication:Tenant:Issuer`, which must end `/realms/learnstack`; HTTPS, or loopback HTTP in Development only |
+| Credentials | Client `learnstack-account-removal`, role `realm-management/manage-users` only; secret through `ISecretProvider` key `AccountRemoval:ClientSecret`, refused when empty, blank, over 1,024 bytes, the mask literal or a `${` reference; a fresh client-credentials token per call |
+| Token check | Issuer, `azp`, no realm role and exactly one `realm-management` role, `manage-users`; anything else is refused before the deletion is sent |
+| Calls | The token request, then one `DELETE users/{id}`; the identifier must be a canonical lowercase UUID (the provider's own user identifier, the OIDC `sub`), is escaped as one path segment, and any other spelling is refused before any request. No redirect is followed and no body of the deletion is read, except the first 256 bytes of a `404`, which are compared with the provider's own message and dropped |
+| Answers | `204` removed; `404` that is the provider's own JSON answer (`error` is `User not found`) absent; `401`, `403`, a redirect, any other `4xx`, a `404` in another type or with any other body (a hop in front of the provider answering for it), a token refusal or a token wider than the role refused; `5xx`, `429`, `408`, `425`, any transport fault on the token call, a name, TLS or proxy-tunnel fault on the deletion, and an open breaker or full bulkhead unavailable (no deletion was confirmed; a repeat finds a landed deletion absent); a timeout, a connection error or loss on the deletion, or an unexpected success answer after the deletion was handed to the transport uncertain |
+| Resilience | `IProviderResilience<IIdentityProviderAccountRemoval>`, configuration `Resilience:accountRemoval`: no retry (the closure's Finalize is the repeatable retry and a quiet repeat would hide a lost answer), a 5 s pipeline timeout that bounds the whole call (the adapter's own cancellation sits one second later, so the breaker records the timeout), circuit breaker on within the federation ranges, and a bulkhead of exactly 1 with no queue; fixed values that composition refuses to change |
+| Confidentiality | The subject and the secret are never logged, audited, placed in an exception message or returned; the closed fault type carries no provider text. A refusal logs one closed reason code at Warning (event 7125) and a call that did not finish one closed cause (event 7126), both listed in the [runbook](../../runbooks/account-removal-client.md#reading-a-refusal-in-the-log) |
+
+The role is realm-wide and can also create and update users and reset credentials; the
+single deleting method, the single caller and the architecture rules in
+[Standard 20](../../standards/20-infrastructure-stack.md#confined-account-removal-adapter)
+confine what LearnStack sends, not what a leaked secret could do.
+
 ## Invitation SMTP
 
 | Boundary | Contract |
@@ -310,8 +336,22 @@ SMTP settings are `InvitationEmail:Smtp:Host`, `Port`, `Sender`, and `Tls`
 composition. Missing configuration prevents startup. No connection is made by
 configuration validation.
 
-The paired local API launcher selects only these seven email configuration
-keys from matching private-file/process sources. Values are compact single-line
+The export artifact key ring `DataExport:KeyRing`
+([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4)
+has the same shape and rules, resolves through `ISecretProvider` and is checked at
+startup by `DataExportStartupService`, whose refusal names the setting (environment
+spelling `DataExport__KeyRing`) and never its value. Rotation is a two-phase rollout
+across hosts and removes the old key only once every artifact sealed under it has
+expired (seven days); a ticket is refused with `data_export_unavailable` while the ring
+lacks an artifact's key. The [data export runbook](../../runbooks/data-export.md) owns
+rotation, key loss, stuck requests, unpurged artifacts and dump handling. The bundle
+ceiling `DataExport:MaxBytes` is an optional whole number of bytes from 1 MiB to 64 MiB,
+16 MiB when absent; any other value refuses composition. The paired launcher selects
+both keys for the API alone, with the same single-line, 8 KiB bound.
+
+The paired local API launcher selects the seven email configuration keys above and
+the two data export keys, and no other provider setting, from matching
+private-file/process sources. Values are compact single-line
 strings of at most 8 KiB in UTF-8; SMTP credentials may be empty for explicit
 Development plaintext. The API owns key-ring, address, TLS and credential tuple
 validation. API file selection uses one no-follow handle and requires a regular,

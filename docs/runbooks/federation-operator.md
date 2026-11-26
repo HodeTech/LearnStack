@@ -52,9 +52,11 @@ A broker that conforms and has a live row is not reported.
 
 ## What is not here
 
-- **Listing or removing realm users.** No LearnStack credential may enumerate or remove
-  them ([ADR-0099 Decision Q1](../decisions/0099-confined-tenant-federation.md)). The
-  account review below is yours, with your own realm authority.
+- **Listing or removing realm users.** The federation credential may neither enumerate
+  nor remove them ([ADR-0099 Decision Q1](../decisions/0099-confined-tenant-federation.md));
+  the one LearnStack credential that deletes a realm user is the closure's
+  [account removal client](account-removal-client.md), which no federation act uses.
+  The account review below is yours, with your own realm authority.
 - **Removing a broker that reads, or one that is still enabled, while a live row names
   it.** A remove is refused (`errors.connection`). Disable it here if it must stop now,
   and let the tenant's own *Delete* retire the connection with its broker. The one

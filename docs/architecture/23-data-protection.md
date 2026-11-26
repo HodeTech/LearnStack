@@ -123,10 +123,47 @@ The capabilities below are the engineering primitives. The tenant-facing data-pr
 
 Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require giving the user their data.
 
-- The user (or the tenant admin on their behalf) requests an export.
-- The platform emits a `DataExportRequestedV1` integration event.
-- Each module exports its data for that user into a structured JSON bundle.
-- The bundle is delivered as a downloadable file with a signed URL; expires in 7 days.
+- The user (or the tenant admin on their behalf) requests an export, bound to one scope
+  group ([ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md)).
+- A transactional job runs each module's `IUserDataParticipant` for that user into one
+  structured JSON bundle; no integration event carries the request
+  ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 1).
+- The bundle is an encrypted private artifact, retrievable only by the subject through a
+  short-lived ticketed download in their live session, readable for a fixed period after
+  completion and revocable; no URL is a bearer credential. ADR-0107 § 4 owns both
+  lifetimes and the [Identity module](../modules/identity/README.md) the ticket bound.
+- Delivered (P03-10 Step 1): the export job (`identity.data_export_tenant.v1` /
+  `identity.data_export_organization.v1`) runs on the group's own transaction; Identity,
+  Tenancy and Audit export sections, Customization and Education only describe
+  `attribution_reference`. Every identifier in the bundle but the request's own is
+  written `self` or `third_party`. The ceiling is `DataExport:MaxBytes`, the chunks are
+  sealed under the `DataExport:KeyRing` secret, both checked at API startup, and a
+  capped section is stated in the bundle and in the artifact's `truncation` receipt
+  column.
+- Plaintext in memory is cleared on a best-effort basis only: the buffers the export
+  and download code own (the bundle's segments, each decrypted chunk, the parsed
+  ticket and chunk request bodies) are overwritten with zeros, but managed strings,
+  serializer internals, grown-and-discarded buffers and the runtime hold copies no
+  code can reach. API and worker process dumps and crash dumps therefore contain
+  personal data and secrets (the export key ring, session material) and are handled
+  as such: not collected by default, access-controlled when taken, and deleted after
+  use ([Data export runbook](../runbooks/data-export.md)).
+- Delivered reach and counts (P03-10 Step 1). The
+  [Identity module's bundle sections](../modules/identity/README.md#export-bundle-sections)
+  own the section contents, the audit reach words, the caps and the retained counts;
+  this document states only what they mean for the person:
+  - **The audit section is not the person's whole audit trail.** The job reads under the
+    row policy without a tenant-wide witness, so an export reaches one group's rows and
+    says so in its first record (`complete` is `false`). Rows the person caused in an
+    organization where they have no Membership of any status reach **no** export of
+    theirs, because no export can be filed in a group without one. The "whole tenant"
+    reach of ADR-0107 § 3 and ADR-0108 § 4 is not delivered and needs its own decision.
+  - **A cap truncates and says so**; it does not fail the request.
+  - **The retained list is partial.** The tenant side counts the kinds its participants
+    own and the operator's completion sets the audit log's kinds from the redaction; a
+    kind not listed is retained and not counted, not zero. The web surface's retention
+    explanation names the classes with no subject-keyed count (P03-10 Step 4) and
+    Phase 11 owns the retention periods and the counting of the stores it purges.
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 
@@ -163,8 +200,11 @@ Both regimes recognise exceptions (legal obligation, contract performance). Lear
 
 Per category:
 
-- PII-Identity → anonymisation (`name = "deleted user"`, `email = "deleted_<id>@learnstack.invalid"`).
-- PII-Behaviour → anonymisation (progress / attempts retained for cohort statistics; actor field is replaced).
+- PII-Identity → the contextual profile (display name, locale, custom values) is cleared; the
+  Membership stays as a Revoked pseudonymised tombstone and the global `users` row is
+  untouched (ADR-0107 § 5). The model carries no `name` or `email` field to replace.
+- PII-Behaviour → anonymisation (progress / attempts retained for cohort statistics); the
+  immutable actor identifier is retained and reported, never called anonymous.
 - PII-Sensitive → hard delete (recordings deleted from storage; metadata anonymised).
 - Payment → retained for legal period; user notified of the exception.
 - Audit → redact the six permitted human-facing columns; retain the action record.
@@ -178,10 +218,16 @@ separated by authority. Conflating them lets a tenant admin close a person's acc
 **Tenant-scoped erasure.** Initiated by a tenant admin, or by the person acting inside
 that tenant.
 
-1. Eligibility is validated (no active payment dispute, no legal hold).
-2. The `Membership` and its `MembershipProfile` are removed.
+1. Eligibility is validated (the structural checks and the hold port of ADR-0106 § 7; no
+   payment or hold source exists until Phase 09). The request waits a 24-hour cancellable
+   window, and an administrator files it only for a person whose Membership is already
+   Revoked (ADR-0106 §§ 3, 11).
+2. The group's role assignments are removed, the `MembershipProfile` is cleared and the
+   `Membership` becomes a Revoked pseudonymised tombstone (ADR-0107 § 5).
 3. That tenant's behaviour rows are anonymised; its audit entries keep the action
-   record, with redaction subject to the [first-writer prerequisites](#erasure-authority-and-first-writer-prerequisites).
+   record, with the six permitted columns redacted by an operator act
+   ([ADR-0108](../decisions/0108-privileged-audit-redaction.md)) and the surviving
+   references reported.
 4. This flow preserves the [permanent global binding/tombstone](#identity-foundation-and-classification-ownership).
    Nothing in this flow touches Keycloak.
 
@@ -200,15 +246,19 @@ requesting person, any required approver, service actor and privileged executor.
 The participant inventory/write fence must reconcile new memberships, pending
 invites and delayed mirrors so completed closure cannot recreate account data.
 
-1. The platform admin enters scope through the audited `EnterPlatformAdminScope(reason)`
-   — the only path that reads across tenants.
-2. Eligibility is validated (no active payment dispute, no legal hold).
-3. `UserAnonymisationRequestedV1` fans out to every tenant the person belongs to.
-4. Each module consumes the event and performs its part: anonymise rows, delete storage
-   objects. **The Keycloak user is invalidated once, at the end, by the platform-scoped
-   step — never by a module reacting to a tenant-scoped request.**
-5. A final reconciliation job confirms every module reported completion within 30 days.
-   Failures escalate to platform admin.
+1. After the 24-hour window, a platform operator, who has confirmed the request with the
+   person, runs the audited Begin act under [ADR-0101](../decisions/0101-platform-operator-authority.md):
+   it takes the User fence and every participant tenant fence, checks eligibility and the
+   last-administrator rule, and moves the User to Closing, which is irreversible.
+2. A per-group fan-out creates each participant group's erasure request and job in that
+   group's own transaction; there is no integration event.
+3. Each group erases as in the tenant-scoped flow and waits for the privileged step.
+4. The operator's Finalize act redacts the audit rows, deletes the Keycloak user once at
+   the end — never a module reacting to a tenant-scoped request — and sets the User
+   Closed, removing the raw provider subject and keeping the key and actor tombstone
+   (ADR-0107 § 7).
+5. The operator inspection lists overdue requests; a request not completed within 30 days
+   is a defect escalated by the runbook.
 
 ### Durable asynchronous store inventory
 
@@ -292,6 +342,10 @@ govern personal data; exclusion here grants no erasure exemption.
 | `role_permission_grants` | Synchronous explicit authority definitions, not delivery or diagnostic copies |
 | `invitations` | Synchronous scoped Identity offer and acceptance result, including sensitive recipient/verifier and job linkage; the invitation inventory below owns fulfillment constraints |
 | `federation_connections` | Synchronous tenant-owned federation configuration (ADR-0099): public IdP identifiers, nonsecret digests and lifecycle, with pseudonymous pending/test actor identifiers; no secret, token or assertion and no queued payload |
+| `data_subject_requests` | Synchronous organization-scoped subject request receipt (ADR-0106): subject and requester UserId, frozen Membership identifiers, closed status/refusal/failure codes, participant progress and the retained-kind counts, classified `Audit` because they count the person's references; pseudonymous identifiers and counts, no content; retained as `request_receipt` with Phase 11 retention, and the job parameters carry identifiers only |
+| `data_export_artifacts` | Synchronous export receipt metadata (ADR-0107 § 4): subject, request, key-ring label, lifecycle, and the bundle's size, chunk count and immutable closed truncation statement (ADR-0107 § 3: collection names and counts), classified `Audit` because they measure the person's data; pseudonymous identifiers and counts, no content or key; retained as `request_receipt` after its chunks are purged |
+| `data_export_tickets` | Synchronous session-bound download cursor (ADR-0107 § 4): subject, artifact and credential digests only, never the ticket value; retained as `request_receipt`; the digests outlive the ticket's expiry until Phase 11's retention purge nulls them |
+| `data_export_chunks` | Synchronous encrypted export bundle (ADR-0107 § 4): PII-Sensitive AES-256-GCM ciphertext of the subject's own data, never in an EF snapshot or audit row; purged at revocation, expiry or erasure, not an asynchronous delivery copy |
 <!-- async-store-module-exclusions:end -->
 
 LearnStack job-table no-delete triggers also bind the owner; BYPASSRLS is not
@@ -444,8 +498,8 @@ admission event. The same per-row retention targets and existing metadata UPDATE
 restrictions apply. No new private Identity audit store or blanket metadata
 redaction grant follows.
 
-P03-10's Identity closure coordinator and Audit redaction participant own subject/
-actor/context/receipt locators and truthful retained-copy reporting before their
+P03-10's Identity closure coordinator and the Audit module's redaction executor own
+subject/actor/context/receipt locators and truthful retained-copy reporting before their
 first affected writer. They must include these synchronous and volatile copies,
 not infer erasure from a deleted source row or logout. Phase 11 owns automatic
 purge, replay-table maintenance, backups and provider/diagnostic retained-copy
@@ -521,13 +575,13 @@ remains in the phase Status block.
   `user_agent`, `before_state`, `after_state` and `changes`.
   `actor_user_id` remains immutable and `metadata` is outside that grant
   ([Audit append-only enforcement](31-audit-subsystem.md#append-only-enforcement)).
-  Phase 03 must decide the surviving actor/entity/causation references and new
-  causal metadata before its redaction/erasure handler lands; this inventory
-  does not claim that complete anonymisation already works.
+  [ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 6 decides the
+  surviving actor, entity, causation and metadata references; this inventory does not
+  claim that complete anonymisation works.
 
 **Accepted identity fulfillment ownership — implementation remains P03-10.**
 P03-10's Identity closure coordinator owns the authorized lifecycle transition
-and raw-subject removal. The Audit redaction participant uses
+and raw-subject removal. The Audit redaction executor uses
 `IUserReferenceLocator` to locate exact global failed-attempt paths by subject key
 even when no User was committed, together with successful actor references and ADR-0077 authorization linkage. Its
 request/result contract reports retained immutable linkage and the applicable

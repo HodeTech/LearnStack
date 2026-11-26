@@ -90,10 +90,10 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var controller = map["LearnStack.Api:" + endpoint.Controller];
             var action = controller.Methods.Single(method => method.Name == endpoint.Action);
             ProtectedHandoff(controller, action, endpoint).Should().BeTrue();
-            if (controller.FullName == "LearnStack.Api.Tenancy.ConsentSubjectController"
+            if (controller.FullName is "LearnStack.Api.Tenancy.ConsentSubjectController" or DataRequestEntryController
                 || controller.FullName == "LearnStack.Api.Customization.CustomFieldDefinitionsController" && action.Name is ("Retire" or "Discard"))
             {
-                var bodyMethods = controller.FullName == "LearnStack.Api.Tenancy.ConsentSubjectController"
+                var bodyMethods = controller.FullName is "LearnStack.Api.Tenancy.ConsentSubjectController" or DataRequestEntryController
                     ? ActionBodies(controller, action.Name).ToArray() : ActionBodies(controller, "Transition").ToArray();
                 var operand = bodyMethods.SelectMany(method => method.Body.Instructions)
                     .First(instruction => instruction.Operand is MethodReference target && HandoffSignature(target));

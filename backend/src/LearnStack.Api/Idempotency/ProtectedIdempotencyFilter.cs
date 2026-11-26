@@ -83,7 +83,7 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
             case IdempotencyClaim.Completed:
                 // A retained-consent mutation witness cannot become a receipt-read
                 // witness after HTTP authorization. Retry through fresh admission.
-                if (_descriptor.Operation == ProtectedAdministrationOperation.WithdrawOwnFieldConsent)
+                if (_descriptor.Operation == ProtectedAdministrationOperation.WithdrawOwnFieldConsent || _descriptor.IsRetainedDataRequest)
                 { context.Result = Problem("lockey_request_in_progress"); return; }
                 await ReplayAsync(context, claim.Stored, cancellationToken);
                 return;
@@ -271,10 +271,10 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
         if (stored.Body is null || stored.Headers is null
             || stored.ReplayTarget is not { } target || target.Kind != descriptor.TargetKind || target.Id == Guid.Empty || target.Id.Version != 7
             || target.Kind == IdempotencyReplayTargetKind.Tenant && target.Id != tenant.Value
-            || stored.StatusCode != (descriptor.Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK)
+            || stored.StatusCode != descriptor.SuccessStatus
             || stored.ContentType != "application/json; charset=utf-8" || stored.Body.Length > MaxReceiptBytes
             || !stored.Body.AsSpan().SequenceEqual(ProtectedAdministrationResult.BodyFor(descriptor, target.Id, version))) return false;
-        if (descriptor.Creates ? !TryHeader(stored, "Location", out var location)
+        if (descriptor.HasLocation ? !TryHeader(stored, "Location", out var location)
                 || location != descriptor.LocationFor(target.Id)
             : stored.Headers.Keys.Any(name => name.Equals("Location", StringComparison.OrdinalIgnoreCase))) return false;
         var response = new DefaultHttpContext().Response;

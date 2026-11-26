@@ -35,6 +35,9 @@ public static class PlatformOperatorMetrics
     /// <summary>Federation operator calls by <c>operation</c> and <c>outcome</c> (ADR-0099 Amendment 10).</summary>
     public const string FederationCounterName = "learnstack_platform_operator_federation_total";
 
+    /// <summary>Data-request operator calls by <c>operation</c> and <c>outcome</c> (ADR-0107 § 8).</summary>
+    public const string DataRequestCounterName = "learnstack_platform_operator_data_requests_total";
+
     /// <summary>Issuer metadata or key fetches that failed or were refused (no label).</summary>
     public const string MetadataFailureCounterName = "learnstack_platform_operator_metadata_failures_total";
 
@@ -57,6 +60,9 @@ public static class PlatformOperatorMetrics
 
     private static readonly Counter<long> FederationCalls =
         Meter.CreateCounter<long>(FederationCounterName, description: "Operator federation calls by operation and outcome.");
+
+    private static readonly Counter<long> DataRequestCalls =
+        Meter.CreateCounter<long>(DataRequestCounterName, description: "Operator data-request calls by operation and outcome.");
 
     private static readonly Counter<long> AuditFailures =
         Meter.CreateCounter<long>(AuditFailureCounterName, description: "Operator acts refused because the MUST row was not durable.");
@@ -139,6 +145,18 @@ public static class PlatformOperatorMetrics
     /// </summary>
     public static void Federation(PlatformOperation operation, string outcome) =>
         FederationCalls.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug),
+            new KeyValuePair<string, object?>("outcome", outcome));
+
+    /// <summary>
+    /// Counts one data-request call by how it ended: an inspection's <c>ok</c> or <c>invalid_cursor</c>, or a completion's
+    /// <c>completed</c>, <c>already_completed</c>, <c>not_found</c>, <c>not_erasure</c>, <c>closure_fanout</c> or
+    /// <c>not_awaiting</c>; either may end <c>unavailable</c>, or <c>commit_unknown</c> when a completion's commit may
+    /// have landed. A refused MUST row is <c>audit_unavailable</c> and an unexpected failure (answered 500) is
+    /// <c>failed</c>. A closure's fan-out counts each participant group once: <c>fan_out_started</c>,
+    /// <c>fan_out_adopted</c>, <c>fan_out_waiting</c> or <c>fan_out_failed</c>.
+    /// </summary>
+    public static void DataRequest(PlatformOperation operation, string outcome) =>
+        DataRequestCalls.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug),
             new KeyValuePair<string, object?>("outcome", outcome));
 
     /// <summary>Counts an act that was refused because its MUST row could not be written.</summary>

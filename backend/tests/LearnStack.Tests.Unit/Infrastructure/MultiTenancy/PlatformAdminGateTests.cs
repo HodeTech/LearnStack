@@ -95,6 +95,11 @@ public sealed class PlatformAdminGateTests
     [InlineData("platform.federation.report", "platform.federation.read")]
     [InlineData("platform.federation.remove", "platform.federation.admin")]
     [InlineData("platform.federation.disable", "platform.federation.admin")]
+    [InlineData("platform.data_request.inspect", "platform.data_request.read")]
+    [InlineData("audit.redaction.apply", "platform.data_request.write")]
+    [InlineData("platform.closure.begin", "platform.data_request.write")]
+    [InlineData("platform.closure.finalize", "platform.data_request.write")]
+    [InlineData("identity.data_request.fan_out_closure", "platform.data_request.write")]
     public async Task An_Operator_Operation_Is_Admitted_Only_For_Its_Own_Permission(string slug, string permission)
     {
         // ADR-0103 Decision table and ADR-0099 Amendment 10: a read needs the read key and an act needs the write or
@@ -369,6 +374,24 @@ public sealed class PlatformAdminGateTests
                 declaredAttempt.OperationType.Should().Be(OperationType.SecurityEvent);
             }
         }
+    }
+
+    [Fact]
+    public void The_Closure_Operations_Carry_Their_Recorded_Spellings_And_Only_Finalize_Has_A_Checkpoint()
+    {
+        // ADR-0107 § 8 leaves the spellings to the step record: both acts run in the platform scope under the one write
+        // key, their rows name the platform module because the operator writes refuse identity, and Finalize alone
+        // writes an intent row, the redaction's evidence, before its provider call (ADR-0108 § 8).
+        var spellings = new[] { PlatformOperations.ClosureBegin, PlatformOperations.ClosureFinalize }
+            .Select(operation => (operation.AuditSlug, operation.ReasonSlug, operation.AttemptAuditSlug, operation.Executor,
+                operation.Permission.Key));
+
+        spellings.Should().Equal(
+            ("platform.closure.begin", "closure_begin", (string?)null, PlatformOperationExecutor.PlatformScope,
+                "platform.data_request.write"),
+            ("platform.closure.finalize", "closure_finalize", "platform.closure.finalize_attempt",
+                PlatformOperationExecutor.PlatformScope, "platform.data_request.write"));
+        PlatformOperations.All.Should().Contain([PlatformOperations.ClosureBegin, PlatformOperations.ClosureFinalize]);
     }
 
     [Fact]

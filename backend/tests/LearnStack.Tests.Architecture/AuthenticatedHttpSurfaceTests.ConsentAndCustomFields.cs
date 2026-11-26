@@ -32,6 +32,46 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 && calls.All(target => target.DeclaringType.FullName != ProtectedResult);
     }
 
+    private const string DataRequestEntryController = "LearnStack.Api.Identity.DataRequestEntryController";
+
+    /// <summary>
+    /// ADR-0106 § 9: like the consent subject, each retained data-request entry action sends exactly the request its
+    /// source captured before authorization, read once from its request feature, and never constructs one. The keyed
+    /// purposes hand off to the protected carrier; the rest send once.
+    /// </summary>
+    private static bool DataRequestEntryHandoff(TypeDefinition controller, MethodDefinition action, Endpoint endpoint)
+    {
+        const string Feature = "LearnStack.Api.Authentication.OwnDataRequestEntryRequest";
+        if (controller.FullName != DataRequestEntryController
+            || action.DeclaringType != controller || endpoint.Controller != controller.FullName
+            || endpoint.Request != (action.Name switch
+            {
+                "Scopes" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListRetainedDataRequestScopesQuery),
+                "Requests" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListRetainedDataRequestsQuery),
+                "CreateExport" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataExportCommand),
+                "CreateErasure" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataErasureCommand),
+                "CreateClosure" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedAccountClosureCommand),
+                "Cancel" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelRetainedDataRequestCommand),
+                "RevokeExport" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.RevokeRetainedDataExportCommand),
+                "MintTicket" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.MintRetainedDataExportTicketCommand),
+                "ReadChunk" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ReadRetainedDataExportChunkCommand),
+                _ => null,
+            })) return false;
+        var instructions = ActionBodies(controller, action.Name).SelectMany(method => method.Body.Instructions).ToArray();
+        var calls = instructions.Select(item => item.Operand).OfType<MethodReference>().ToArray();
+        if (instructions.Count(item => item.OpCode == OpCodes.Isinst && item.Operand is TypeReference type
+                && type.FullName == endpoint.Request.FullName) != 1
+            || calls.Count(target => target.DeclaringType.FullName == Feature && target.Name == "get_Request") != 1
+            || calls.Count(target => target is GenericInstanceMethod generic && generic.Name == "Get" && generic.GenericArguments.Count == 1
+                && generic.GenericArguments[0].FullName == Feature) != 1
+            || instructions.Any(item => item.OpCode == OpCodes.Newobj && item.Operand is MethodReference target
+                && target.DeclaringType.Namespace == endpoint.Request.Namespace)) return false;
+        return endpoint.ProtectedOperation is not null
+            ? calls.Count(HandoffSignature) == 1 && calls.All(target => target.DeclaringType.FullName != Sender)
+            : calls.Count(target => target.DeclaringType.FullName == Sender && target.Name == "Send") == 1
+                && calls.All(target => target.DeclaringType.FullName != ProtectedResult);
+    }
+
     private static bool CustomFieldTransitionHandoff(TypeDefinition controller, MethodDefinition action, Endpoint endpoint)
     {
         if (controller.FullName != "LearnStack.Api.Customization.CustomFieldDefinitionsController"

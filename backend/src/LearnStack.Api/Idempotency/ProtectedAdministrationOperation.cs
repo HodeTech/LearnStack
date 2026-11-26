@@ -7,6 +7,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Idempotency;
 
@@ -38,6 +39,20 @@ public enum ProtectedAdministrationOperation
     SetOwnCustomFields = 21,
     GrantOwnFieldConsent = 22,
     WithdrawOwnFieldConsent = 23,
+    CreateOwnDataExport = 24,
+    CreateDataExportForSubject = 25,
+    CancelOwnDataRequest = 26,
+    CancelDataRequest = 27,
+    RevokeOwnDataExport = 28,
+    RevokeDataExport = 29,
+    CreateRetainedDataExport = 30,
+    CancelRetainedDataRequest = 31,
+    CreateOwnDataErasure = 32,
+    CreateDataErasureForSubject = 33,
+    CreateRetainedDataErasure = 34,
+    RevokeRetainedDataExport = 35,
+    CreateOwnAccountClosure = 36,
+    CreateRetainedAccountClosure = 37,
 }
 
 internal sealed record ProtectedAdministrationDescriptor(
@@ -49,6 +64,41 @@ internal sealed record ProtectedAdministrationDescriptor(
         or ProtectedAdministrationOperation.SetMemberCustomFields or ProtectedAdministrationOperation.SetOwnCustomFields
         or ProtectedAdministrationOperation.GrantOwnFieldConsent or ProtectedAdministrationOperation.WithdrawOwnFieldConsent;
     internal bool IsConsent => Operation is ProtectedAdministrationOperation.GrantOwnFieldConsent or ProtectedAdministrationOperation.WithdrawOwnFieldConsent;
+
+    /// <summary>
+    /// ADR-0106 § 10: a data-request creation is accepted, not finished — 202 with the request's initial resource, its
+    /// <c>Location</c> and its <c>ETag</c>. Every other keyed creation answers 201 and every other mutation 200.
+    /// </summary>
+    internal bool IsDataRequestCreation => IsDataExportCreation || IsDataErasureCreation || IsAccountClosureCreation;
+
+    internal bool IsDataExportCreation => Operation is ProtectedAdministrationOperation.CreateOwnDataExport
+        or ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CreateRetainedDataExport;
+
+    /// <summary>ADR-0106 § 11: an erasure is accepted <c>scheduled</c>, executed once its cancellable window ends.</summary>
+    internal bool IsDataErasureCreation => Operation is ProtectedAdministrationOperation.CreateOwnDataErasure
+        or ProtectedAdministrationOperation.CreateDataErasureForSubject or ProtectedAdministrationOperation.CreateRetainedDataErasure;
+
+    /// <summary>
+    /// ADR-0106 § 11, ADR-0107 § 7: a closure is accepted <c>scheduled</c>; the person alone files it, so it has no
+    /// administrator operation.
+    /// </summary>
+    internal bool IsAccountClosureCreation => Operation is ProtectedAdministrationOperation.CreateOwnAccountClosure
+        or ProtectedAdministrationOperation.CreateRetainedAccountClosure;
+
+    /// <summary>
+    /// ADR-0106 § 9: the retained own-scope entry has no per-request route a Location could name; its receipt is read
+    /// through the group's request list, so its creation answers 202 with the resource and ETag and no Location.
+    /// </summary>
+    internal bool HasLocation => Creates && Operation is not (ProtectedAdministrationOperation.CreateRetainedDataExport
+        or ProtectedAdministrationOperation.CreateRetainedDataErasure or ProtectedAdministrationOperation.CreateRetainedAccountClosure);
+
+    /// <summary>The retained own-scope entry's keyed operations, whose replay reads only through their own witness.</summary>
+    internal bool IsRetainedDataRequest => Operation is ProtectedAdministrationOperation.CreateRetainedDataExport
+        or ProtectedAdministrationOperation.CreateRetainedDataErasure or ProtectedAdministrationOperation.CreateRetainedAccountClosure
+        or ProtectedAdministrationOperation.CancelRetainedDataRequest or ProtectedAdministrationOperation.RevokeRetainedDataExport;
+
+    internal int SuccessStatus => IsDataRequestCreation ? StatusCodes.Status202Accepted
+        : Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK;
     private static readonly ProtectedAdministrationDescriptor[] Descriptors =
         Enum.GetValues<ProtectedAdministrationOperation>().Select(For).ToArray();
 
@@ -84,6 +134,20 @@ internal sealed record ProtectedAdministrationDescriptor(
         ProtectedAdministrationOperation.SetOwnCustomFields => new(operation, typeof(SetOwnMembershipCustomFieldsCommand), IdempotencyReplayTargetKind.Membership),
         ProtectedAdministrationOperation.GrantOwnFieldConsent => new(operation, typeof(GrantOwnMembershipFieldConsentCommand), IdempotencyReplayTargetKind.MembershipFieldConsent),
         ProtectedAdministrationOperation.WithdrawOwnFieldConsent => new(operation, typeof(WithdrawOwnMembershipFieldConsentCommand), IdempotencyReplayTargetKind.MembershipFieldConsent),
+        ProtectedAdministrationOperation.CreateOwnDataExport => new(operation, typeof(CreateOwnDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CreateDataExportForSubject => new(operation, typeof(CreateDataExportForSubjectCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CancelOwnDataRequest => new(operation, typeof(CancelOwnDataRequestCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.CancelDataRequest => new(operation, typeof(CancelDataRequestCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.RevokeOwnDataExport => new(operation, typeof(RevokeOwnDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.RevokeDataExport => new(operation, typeof(RevokeDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.CreateRetainedDataExport => new(operation, typeof(CreateRetainedDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CancelRetainedDataRequest => new(operation, typeof(CancelRetainedDataRequestCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.CreateOwnDataErasure => new(operation, typeof(CreateOwnDataErasureCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CreateDataErasureForSubject => new(operation, typeof(CreateDataErasureForSubjectCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CreateRetainedDataErasure => new(operation, typeof(CreateRetainedDataErasureCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.RevokeRetainedDataExport => new(operation, typeof(RevokeRetainedDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.CreateOwnAccountClosure => new(operation, typeof(CreateOwnAccountClosureCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CreateRetainedAccountClosure => new(operation, typeof(CreateRetainedAccountClosureCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -112,6 +176,20 @@ internal sealed record ProtectedAdministrationDescriptor(
         SetOwnMembershipCustomFieldsCommand => ProtectedAdministrationOperation.SetOwnCustomFields,
         GrantOwnMembershipFieldConsentCommand => ProtectedAdministrationOperation.GrantOwnFieldConsent,
         WithdrawOwnMembershipFieldConsentCommand => ProtectedAdministrationOperation.WithdrawOwnFieldConsent,
+        CreateOwnDataExportCommand => ProtectedAdministrationOperation.CreateOwnDataExport,
+        CreateDataExportForSubjectCommand => ProtectedAdministrationOperation.CreateDataExportForSubject,
+        CancelOwnDataRequestCommand => ProtectedAdministrationOperation.CancelOwnDataRequest,
+        CancelDataRequestCommand => ProtectedAdministrationOperation.CancelDataRequest,
+        RevokeOwnDataExportCommand => ProtectedAdministrationOperation.RevokeOwnDataExport,
+        RevokeDataExportCommand => ProtectedAdministrationOperation.RevokeDataExport,
+        CreateRetainedDataExportCommand => ProtectedAdministrationOperation.CreateRetainedDataExport,
+        CancelRetainedDataRequestCommand => ProtectedAdministrationOperation.CancelRetainedDataRequest,
+        CreateOwnDataErasureCommand => ProtectedAdministrationOperation.CreateOwnDataErasure,
+        CreateDataErasureForSubjectCommand => ProtectedAdministrationOperation.CreateDataErasureForSubject,
+        CreateRetainedDataErasureCommand => ProtectedAdministrationOperation.CreateRetainedDataErasure,
+        RevokeRetainedDataExportCommand => ProtectedAdministrationOperation.RevokeRetainedDataExport,
+        CreateOwnAccountClosureCommand => ProtectedAdministrationOperation.CreateOwnAccountClosure,
+        CreateRetainedAccountClosureCommand => ProtectedAdministrationOperation.CreateRetainedAccountClosure,
         _ => null,
     };
 
@@ -137,6 +215,19 @@ internal sealed record ProtectedAdministrationDescriptor(
         DiscardCustomFieldDefinitionDraftCommand command => command.ExpectedVersion,
         SetMembershipCustomFieldsCommand command => command.ExpectedVersion,
         SetOwnMembershipCustomFieldsCommand command => command.ExpectedVersion,
+        CreateOwnDataExportCommand or CreateDataExportForSubjectCommand => null,
+        CancelOwnDataRequestCommand command => command.ExpectedVersion,
+        CancelDataRequestCommand command => command.ExpectedVersion,
+        RevokeOwnDataExportCommand command => command.ExpectedArtifactVersion,
+        RevokeDataExportCommand command => command.ExpectedArtifactVersion,
+        CreateRetainedDataExportCommand => null,
+        CancelRetainedDataRequestCommand command => command.ExpectedVersion,
+        CreateOwnDataErasureCommand => null,
+        CreateDataErasureForSubjectCommand => null,
+        CreateRetainedDataErasureCommand => null,
+        RevokeRetainedDataExportCommand command => command.ExpectedArtifactVersion,
+        CreateOwnAccountClosureCommand => null,
+        CreateRetainedAccountClosureCommand => null,
         _ => throw new ArgumentException("The protected operation is not registered.", nameof(request)),
     };
     internal bool TryReadPrecondition(HttpRequest request, out long? expected)
@@ -155,6 +246,14 @@ internal sealed record ProtectedAdministrationDescriptor(
     {
         ProtectedAdministrationOperation.CreateInvitation => "/api/v1/identity/invitations/" + id.ToString("D"),
         ProtectedAdministrationOperation.RegisterCustomFieldDefinition => "/api/v1/customization/custom-field-definitions/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateOwnDataExport => "/api/v1/identity/me/data-requests/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateDataExportForSubject => "/api/v1/identity/data-requests/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateOwnDataErasure => "/api/v1/identity/me/data-requests/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateDataErasureForSubject => "/api/v1/identity/data-requests/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateOwnAccountClosure => "/api/v1/identity/me/data-requests/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CreateRetainedDataErasure
+            or ProtectedAdministrationOperation.CreateRetainedAccountClosure =>
+            throw new InvalidOperationException("The retained entry has no request location."),
         _ => OrganizationLocationFor(id),
     };
     internal static string OrganizationLocationFor(Guid id) => "/api/v1/tenancy/organizations/" + id.ToString("D");

@@ -450,10 +450,10 @@ public sealed partial class AuditConventionTests
     public void AuditEntry_Is_AppendOnly()
     {
         // No UPDATE and no DELETE against audit_log anywhere in backend/src, and the
-        // exception list is CLOSED and NAMED: the GDPR redaction handler, the retention
-        // purge job, and a module's IUserReferenceLocator. None of the three ships yet —
-        // they land in Phase 11 and Phase 03 — so today the honest expectation is that
-        // there are no sites at all, and the list exists so that adding one is a decision
+        // exception list is CLOSED and NAMED: the one redaction executor of ADR-0108, which
+        // updates the six granted columns and never deletes. Modules only declare where their
+        // references live (IUserReferenceLocator) and never name the table; Phase 11's
+        // retention purge adds its own path when it lands, so adding a site is a decision
         // rather than an edit.
         //
         // The database-level guard is AuditLog_Update_Is_Column_Restricted; this is the
@@ -461,17 +461,32 @@ public sealed partial class AuditConventionTests
         // policy is consulted.
         var offenders = new List<string>();
         var sawTheStore = false;
+        var sanctioned = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var file in SourceFiles())
         {
             var code = SourceText.WithoutComments(File.ReadAllText(file));
-            var relative = Path.GetRelativePath(RepositoryPaths.BackendSrc(), file);
+            var relative = Path.GetRelativePath(RepositoryPaths.BackendSrc(), file).Replace('\\', '/');
 
             sawTheStore |= code.Contains("INSERT INTO audit_log", StringComparison.Ordinal);
 
-            if (AuditLogMutation().IsMatch(code) && !SanctionedRedactionSites.Contains(relative))
+            if (!AuditLogMutation().IsMatch(code))
+            {
+                continue;
+            }
+
+            if (!SanctionedRedactionSites.Contains(relative))
             {
                 offenders.Add(relative);
+                continue;
+            }
+
+            // A redaction site rewrites columns; the DELETE the platform role holds is the
+            // retention purge's, and ADR-0108 keeps the executor from it.
+            sanctioned.Add(relative);
+            if (AuditLogDelete().IsMatch(code))
+            {
+                offenders.Add(relative + " (a DELETE at a redaction site)");
             }
         }
 
@@ -479,9 +494,14 @@ public sealed partial class AuditConventionTests
         // must at least have read the one statement that does write audit_log.
         sawTheStore.Should().BeTrue("the premise: the sweep read PostgresAuditStore's INSERT");
 
+        // And each sanctioned site is a file that still updates the log, so an entry left
+        // behind by a rename cannot later exempt an unrelated file of the same name.
+        sanctioned.Should().BeEquivalentTo(SanctionedRedactionSites,
+            "every sanctioned site exists and carries the UPDATE it is sanctioned for");
+
         offenders.Should().BeEmpty(
-            "audit_log is append-only; the three sanctioned redaction sites land with "
-            + "Phase 03 and Phase 11, and widening that list requires an ADR");
+            "audit_log is append-only; the one sanctioned redaction site is the ADR-0108 "
+            + "executor, and widening that list requires an ADR");
     }
 
     [Fact]
@@ -510,6 +530,11 @@ public sealed partial class AuditConventionTests
         AuditLogMutation().IsMatch("DELETE FROM audit_log_archive").Should().BeFalse();
         AuditLogMutation().IsMatch("UPDATE \"audit_log_archive\" SET x = 1").Should().BeFalse();
         AuditLogMutation().IsMatch("UPDATE public.audit_log2 SET x = 1").Should().BeFalse();
+
+        // The redaction site's own refusal: a DELETE beside its UPDATE, however it is spelled.
+        AuditLogDelete().IsMatch("delete from only public . audit_log where id = @id").Should().BeTrue();
+        AuditLogDelete().IsMatch("UPDATE audit_log AS a SET ip_address = NULL").Should().BeFalse();
+        AuditLogDelete().IsMatch("DELETE FROM audit_log_archive").Should().BeFalse();
     }
 
     [Fact]
@@ -530,16 +555,21 @@ public sealed partial class AuditConventionTests
     }
 
     /// <summary>
-    /// The files the standard's three sites are, by exact path under <c>backend/src</c>.
+    /// The files that may update <c>audit_log</c>, by exact path under <c>backend/src</c>.
     /// </summary>
     /// <remarks>
-    /// Empty, because none of them exists yet: Phase 03's GDPR redaction handler and each
-    /// module's <c>IUserReferenceLocator</c>, and Phase 11's retention purge. The first to
-    /// land adds its own path here, so it is exempted by NAME — never by a substring, which
-    /// the first version used and which exempted any file in the Audit module whose path
-    /// happened to contain "Redaction" (the fourth review of Packet 9).
+    /// One: the redaction executor of ADR-0108 § 2, which replaces the three sites the
+    /// corpus once named (a redaction handler, each module's <c>IUserReferenceLocator</c>,
+    /// the retention purge) with one Audit-owned file; a locator only declares paths.
+    /// Phase 11's retention purge adds its own path when it lands. A site is exempted by
+    /// NAME — never by a substring, which the first version used and which exempted any file
+    /// in the Audit module whose path happened to contain "Redaction" (the fourth review of
+    /// Packet 9).
     /// </remarks>
-    private static readonly HashSet<string> SanctionedRedactionSites = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> SanctionedRedactionSites = new(StringComparer.Ordinal)
+    {
+        "LearnStack.Infrastructure.Audit/AuditRedactionExecutor.cs",
+    };
 
     private static IEnumerable<string> SourceFiles() =>
         Directory
@@ -555,6 +585,12 @@ public sealed partial class AuditConventionTests
         @"\b(?:UPDATE|DELETE\s+FROM)(?:\s+ONLY)?\s+(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?audit_log""?(?![A-Za-z0-9_])",
         RegexOptions.IgnoreCase)]
     private static partial Regex AuditLogMutation();
+
+    /// <summary>A <c>DELETE</c> whose target is <c>audit_log</c> itself, spelled as <see cref="AuditLogMutation"/> reads it.</summary>
+    [GeneratedRegex(
+        @"\bDELETE\s+FROM(?:\s+ONLY)?\s+(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?audit_log""?(?![A-Za-z0-9_])",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex AuditLogDelete();
 
     /// <summary>
     /// The seven `OperationType` spellings the standard's table carries.

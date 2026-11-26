@@ -108,6 +108,12 @@ public sealed partial class EducationStructureTests
     [InlineData("missing-constraint")]
     [InlineData("wrong-branch")]
     [InlineData("early-return")]
+    [InlineData("erasure-without-user-fence")]
+    [InlineData("erasure-without-fulfilling-request")]
+    [InlineData("erasure-shared-tenant-fence")]
+    [InlineData("erasure-other-group")]
+    [InlineData("erasure-other-subject")]
+    [InlineData("erasure-outside-snapshot")]
     public async Task The_Identity_Parent_Guard_Rejects_A_Weakened_Applied_Function(string defect)
     {
         await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
@@ -134,6 +140,16 @@ public sealed partial class EducationStructureTests
             "wrong-branch" => body.Replace("ELSIF TG_TABLE_NAME IN ('membership_profiles','membership_role_assignments')",
                 "ELSIF TG_TABLE_NAME IN ('membership_profiles')", StringComparison.Ordinal),
             "early-return" => body.Replace("BEGIN", "BEGIN RETURN NEW;", StringComparison.Ordinal),
+            // ADR-0107 § 5: each condition of the erasure witness is part of the pinned body.
+            "erasure-without-user-fence" => body.Replace("AND public.fn_identity_lock_held('user',parent_user,true) IS TRUE",
+                "", StringComparison.Ordinal),
+            "erasure-without-fulfilling-request" => body.Replace("AND erasure.status = 'fulfilling'", "", StringComparison.Ordinal),
+            "erasure-shared-tenant-fence" => body.Replace("require_exclusive := erasure_clearing IS TRUE;", "", StringComparison.Ordinal),
+            // The witness is the person's, the group's and the frozen snapshot's: each is also pinned alone.
+            "erasure-other-group" => body.Replace("AND erasure.organization_id IS NOT DISTINCT FROM parent_org", "", StringComparison.Ordinal),
+            "erasure-other-subject" => body.Replace("AND erasure.subject_user_id = parent_user", "", StringComparison.Ordinal),
+            "erasure-outside-snapshot" => body.Replace("AND erasure.membership_snapshot @> jsonb_build_array(target_member::text)", "",
+                StringComparison.Ordinal),
             _ => body,
         };
         if (defect is not ("security-definer" or "search-path" or "stable"))

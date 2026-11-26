@@ -109,6 +109,28 @@ consumer uses the ordinary inbox and central typed-evidence writer. The
 [provider specification](providers.md#retained-user-event-reader) owns adapter and
 deployment configuration; the phase Status owns final qualification.
 
+A delivery of the tenant mirror refuses a person whose User is no longer Active, as
+intake does
+([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7
+and 9): the fact reader asks the confined definer
+`fn_identity_provider_event_subject_status` for the affected person's status under that
+person's User fence held shared, so the read orders against a closure's Begin and
+Finalize, and the Audit subscriber then withholds its observation. The delivery
+completes as a recorded no-op with its inbox row and no audit row, and a replayed
+delivery runs the same rule.
+
+The identity-provider ports are four: `IIdentityEventProvider` (read-only history),
+`IFederationProvider` with `IFederationEgressFetcher` and `IFederationOperator`
+(tenant federation), and `IIdentityProviderAccountRemoval`
+([ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)),
+whose one deleting method deletes one account for the closure's Finalize alone, beside
+a local preflight (`CanRemove`) the closure's Begin asks before the person leaves
+Active. Each has a fail-closed default (the account-removal one is
+`RefusingIdentityProviderAccountRemoval`, whose preflight answers no) and a confined
+Keycloak adapter selected at the composition root only when its own client secret is
+configured; the [provider specification](providers.md#account-removal-adapter) owns the
+account-removal adapter.
+
 ### Aggregate and storage contract
 
 User's authority is [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md);
@@ -284,7 +306,9 @@ guard rejects direct resurrection, inconsistent status/deletion markers and
 transitions outside the diagram. Active/Suspended share current uniqueness;
 Revoked is terminal. Rejoin creates a new ID and fresh assignments after retiring
 the predecessor. Profile has no independent delete/status lifecycle; historical
-child facts cannot restore a revoked Membership's authority.
+child facts cannot restore a revoked Membership's authority. The one write a Revoked
+Membership admits is the erasure's clearing of its profile
+([Tenant erasure](#tenant-erasure-p03-10-step-2)).
 
 Profile carries optional contextual `DisplayName` (128 characters) and
 `PreferredLocale` (35-character well-formed locale tag), both marked sensitive.
@@ -318,12 +342,17 @@ templates, without a
 bootstrap Boolean, receipt or table. Trial, Active and Suspended retain their
 admin. No Archived/termination exemption exists until separately admitted by
 G13/G16. Final-admin removal/suspension/revocation or kernel stripping refuses.
-Future global closure cannot make the final admin ineligible before its separate
-recovery/termination authority and guards are Accepted and implemented.
+A global closure's Begin refuses `blocked_last_administrator` for the only eligible
+tenant-wide administrator of a tenant that allows ordinary work; a tenant that does not
+is the named exception of
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)
+and is not judged.
 
 P03-1 supplies the bounded Tenancy Application.Contracts port
-`IIdentityScopeLifecycleReader.ReadAsync(TenantId, OrganizationId?, CancellationToken)`.
-Its immutable `IdentityScopeLifecycle` result has four Booleans:
+`IIdentityScopeLifecycleReader.ReadAsync(TenantId, OrganizationId?, CancellationToken)`;
+a closure's Begin reads the same facts for every participant group at once with
+`ReadOnPlatformScopeAsync`, on the platform scope's handle and in one statement over
+Tenancy's own tables. Its immutable `IdentityScopeLifecycle` result has four Booleans:
 `TenantExistsAndNotDeleted`, `TenantAllowsOrdinaryWork`,
 `OrganizationBelongsToTenant` and `OrganizationAllowsOrdinaryWork`. Organization
 facts are false when no organization is requested; it returns no row or list.
@@ -810,6 +839,549 @@ the module's side of it.
   deletes its federated links; the account review is the realm administrator's, by
   runbook.
 
+### Subject data request API (P03-10 Step 1)
+
+The live-session API of
+[ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) and
+[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4.
+The [permission matrix](permissions.md#subject-data-request-bindings) owns who may call
+each operation and the [audit matrix](audit.md#data-request-bindings) its
+classification; the OpenAPI document owns the exact wire shapes.
+
+| Route (under `/api/v1`) | Operation | Request |
+|---|---|---|
+| `POST identity/me/data-requests/exports` | `identity.data_request.create_own_export` | `CreateOwnDataExportCommand` |
+| `POST identity/me/data-requests/erasures` | `identity.data_request.create_own_erasure` | `CreateOwnDataErasureCommand` |
+| `POST identity/me/data-requests/closures` | `identity.data_request.create_own_closure` | `CreateOwnAccountClosureCommand` |
+| `GET identity/me/data-requests` | `identity.data_request.list_own` | `ListOwnDataRequestsQuery` |
+| `GET identity/me/data-requests/{id}` | `identity.data_request.read_own` | `GetOwnDataRequestQuery` |
+| `POST identity/me/data-requests/{id}/cancellations` | `identity.data_request.cancel_own` | `CancelOwnDataRequestCommand` |
+| `POST identity/me/data-requests/{id}/artifact/revocations` | `identity.data_request.revoke_own_export` | `RevokeOwnDataExportCommand` |
+| `POST identity/me/data-requests/{id}/artifact/tickets` | `identity.data_request.mint_export_ticket` | `MintOwnDataExportTicketCommand` |
+| `POST identity/me/data-requests/{id}/artifact/chunks` | `identity.data_request.read_export_chunk` | `ReadOwnDataExportChunkCommand` |
+| (keyed replay only) | `identity.data_request.read_own_receipt` | `ReadOwnDataRequestReceiptQuery` |
+| `POST identity/data-requests/exports` | `identity.data_request.create_export` | `CreateDataExportForSubjectCommand` |
+| `POST identity/data-requests/erasures` | `identity.data_request.create_erasure` | `CreateDataErasureForSubjectCommand` |
+| `GET identity/data-requests` | `identity.data_request.list` | `ListDataRequestsQuery` |
+| `GET identity/data-requests/{id}` | `identity.data_request.read` | `GetDataRequestQuery` |
+| `POST identity/data-requests/{id}/cancellations` | `identity.data_request.cancel` | `CancelDataRequestCommand` |
+| `POST identity/data-requests/{id}/artifact/revocations` | `identity.data_request.revoke_export` | `RevokeDataExportCommand` |
+| (keyed replay only) | `identity.data_request.read_receipt` | `ReadDataRequestReceiptQuery` |
+
+- **The group is the context's.** Every read and write names the announced tenant and
+  `organization_id IS NOT DISTINCT FROM` the announced organization: the canonical row
+  policy also shows an organization context the tenant-wide group's rows, so the
+  predicate keeps each group's requests out of the other's pages. One handler core
+  serves each operation; the request types are thin admissions over it, so the retained
+  own-scope path of ADR-0106 § 9 adds its own request types over the same cores.
+- **Creation.** `IdentityMutationLockPlan([subject], tenant, Shared)` takes the
+  subject's exclusive User fence and the shared tenant fence the creation guard demands,
+  then the authority is rechecked. A request whose export or erasure job is dead (an
+  erasure's only after its window ended) is stored `failed`
+  through `DataRequestFailureReconciler` under the held plan before
+  `DataRequestEligibility` (the default `IDataRequestEligibility`) judges the one-active
+  rule; the partial unique index is the backstop and maps to the same
+  `409 business_rule_violation` with `errors.$ = lockey_request_already_active`. The
+  frozen snapshot is every Membership of the subject in the group, of any status, and
+  the export job is submitted on the creating transaction. The answer is `202` with
+  `{id, kind, status, version}`, the `Location` of the receipt and its `ETag`. An
+  administrator names the subject by a Membership of the group, of any status, and never
+  themselves.
+- **One readable artifact, the subject's.** A completed export revokes the subject's
+  previous available artifact in the group before it stores its own (ADR-0107 § 4). The
+  subject's own export may do so; an administrator's may not: while the subject holds a
+  readable artifact in the group, of any origin, an administrator's creation is refused
+  with `409 business_rule_violation` and `errors.$ = lockey_subject_export_available`,
+  judged by the database clock under the creation fences. It can be filed once that
+  artifact is revoked or has expired. One active export per subject and group means no
+  export can store an artifact between that read and the insert.
+- **Receipts.** Identity, kind, origin, status, timestamps, the recorded refusal or
+  failure code, the closed retained-reference kinds and counts, and the artifact's
+  status, expiry, byte and chunk counts and truncation statement. A request whose job is
+  dead is displayed `failed` (`execution_failed`) without a write, and an artifact past
+  its expiry is displayed `expired`. The administrator's view adds the frozen Membership
+  identifiers and `requestedByYou`; neither view holds content, a key version or the
+  subject's `UserId`.
+- **Cancellation and revocation.** Each needs `If-Match` (the request's version for a
+  cancellation, the artifact's for a revocation) and an `Idempotency-Key`. The subject
+  cancels or revokes any request about them; an administrator only one they filed.
+  Revocation goes through `IDataExportArtifactStore.PurgeAsync(Revoked)`, which deletes
+  the chunks at once, and is refused for an artifact already past its expiry.
+- **Download.** A ticket is 32 random bytes returned once as 43 base64url characters and
+  stored only as a domain-separated SHA-256 digest beside a session-binding digest:
+  `HttpDataExportSessionBinding` hashes the group, the actor, the verified issuer and
+  subject and the digest of the exact bearer credential the request presented. The
+  ticket travels only in a request body; neither ticket operation is keyed or
+  conditional. While the ticket is unconsumed, unexpired (fifteen minutes) and presented
+  in its own session, it authorizes reads of any index below the chunk count; serving
+  the final chunk (`count - 1`) consumes it on the same transaction, and a resumed or
+  repeated download mints a new ticket. Every refusal of a chunk read is the same
+  `404 not_found`; a chunk the store cannot open (its key left the ring, or it fails
+  authentication) is answered the same way and logged with identifiers only: critical
+  the first time an artifact is refused under a key label in the process, a warning for
+  each repeat (`DataExportCustodyRefusals`, a bounded per-process memory). The chunk is
+  written as `{index, count, bytes}` straight from its plaintext buffer, which is then
+  zeroed, and the ticket and chunk request bodies are read into a buffer that is zeroed
+  once parsed (best effort: managed strings are beyond reach); responses are
+  `no-store`.
+- **Ticket bounds.** Ticket rows and their MUST audit rows are permanent, so minting is
+  bounded, counted under the artifact's row lock in one statement:
+  `DataRequestLimits.MaximumOpenTicketsPerBinding` unconsumed, unexpired tickets per
+  session binding (a slot frees when one is consumed by its final chunk or expires; a
+  ticket left open by a credential since refreshed does not count against the new one)
+  and `DataRequestLimits.MaximumTicketsPerArtifact` tickets ever per artifact, consumed
+  or not, which is final. A bound reached is `409 business_rule_violation` with
+  `errors.artifact = lockey_data_export_ticket_limit`: wait, or, past the per-artifact
+  bound, file a new export. An artifact that is gone, unreadable or sealed under a key
+  the export key ring no longer holds is `errors.artifact =
+  lockey_data_export_unavailable`: only a new export helps. The OpenAPI document states
+  the numbers from the same constants.
+- **One root per executor.** `DataRequestService` writes only `DataSubjectRequest`,
+  through `IDataRequestStore`; `DataExportDownloadService` writes only
+  `DataExportTicket`, through `IDataExportTicketStore`. Both derive the typed aggregate
+  write store, the readers (`IDataRequestReader`, `IDataRequestJobPhaseReader`) take
+  typed keys through enumerated read methods only, and the fulfilment scheduler takes
+  plain values, so the cross-aggregate census of
+  [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+  counts every data-request handler as a single-root writer.
+
+#### Retained own-scope native entry (P03-10 Step 1)
+
+The retained own scope of
+[ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 9,
+modelled on the consent subject's entry: a person reads and files data requests after
+their Membership is gone, and a Suspended person does so at all. The
+[permission matrix](permissions.md#subject-data-request-bindings) owns who may call each
+operation, the [audit matrix](audit.md#data-request-bindings) its classification, and
+[Database Standards § Retained own data-request scope](../../standards/05-database.md#retained-own-data-request-scope)
+the definer and the setter.
+
+| Route (under `/api/v1/identity/data-request-entry`) | Operation | Request |
+|---|---|---|
+| `GET scopes` | `identity.data_request.list_retained_scopes` | `ListRetainedDataRequestScopesQuery` |
+| `GET requests?group=` | `identity.data_request.list_retained` | `ListRetainedDataRequestsQuery` |
+| `POST exports?group=` | `identity.data_request.create_retained_export` | `CreateRetainedDataExportCommand` |
+| `POST erasures?group=` | `identity.data_request.create_retained_erasure` | `CreateRetainedDataErasureCommand` |
+| `POST closures?group=` | `identity.data_request.create_retained_closure` | `CreateRetainedAccountClosureCommand` |
+| `POST revocations?group=` | `identity.data_request.revoke_retained_export` | `RevokeRetainedDataExportCommand` |
+| `POST cancellations?group=` | `identity.data_request.cancel_retained` | `CancelRetainedDataRequestCommand` |
+| `POST tickets?group=` | `identity.data_request.mint_retained_export_ticket` | `MintRetainedDataExportTicketCommand` |
+| `POST chunks?group=` | `identity.data_request.read_retained_export_chunk` | `ReadRetainedDataExportChunkCommand` |
+| (keyed replay only) | `identity.data_request.read_retained_receipt` | `ReadRetainedDataRequestReceiptQuery` |
+
+- **Entry.** The nine paths are the closed set `OwnDataRequestOperation.ForPath`: exact
+  path, method, action and request type. `NativeSessionSourceMiddleware` admits them
+  selector-free (a tenant or organization header is `400`) with the separate native
+  session credential, `ValidatedOwnDataRequestCredential` captures the stock-validated
+  bearer credential of exactly these requests, and binding normalization must find an
+  existing Active global binding, so a Closing, Closed or unknown binding is `401`.
+- **Group.** Every purpose but discovery names one group in the single `group` query
+  value: `tenant` for the real host's tenant-wide group or an organization's canonical
+  UUIDv7. Before any context exists, `OwnDataRequestSubjectSource.PrepareAsync` reads
+  the strict input (`OwnDataRequestHttpInput`), and the confined lookup proves the group
+  for the normalized actor under the host ceiling (on an organization host only that
+  organization's group). `TenantResolverMiddleware` then builds the context with
+  `TenantContextFactory.CreateForOwnDataRequestScope`. A group the person does not
+  retain is `404`; discovery pages at most twenty groups with the last group's key as
+  `nextCursor`.
+- **Captured request.** Each action sends exactly the request the source captured, read
+  from its `OwnDataRequestEntryRequest` feature; the source mints the witness only for
+  that request object on that endpoint, and the thin handlers
+  (`RetainedDataRequestAdmission`) consume only that witness on its physical owner,
+  build the subject's caller and hand over to the same cores as the live path.
+- **Keyed operations.** Export creation, cancellation, erasure creation, artifact
+  revocation and closure filing are `ProtectedAdministrationOperation`s 30, 31, 34, 35
+  and 37. Creation answers `202` with `{id, kind, status, version}` and its `ETag` and
+  no `Location` (there is no per-request route); an erasure's answer is `scheduled` and
+  its receipt shows `executeAt`, the end of the cancellable window; cancellation needs
+  `If-Match`, and a revocation's `If-Match` is the artifact's version. A replay rereads
+  the captured input, selects the witness's own receipt read and discloses the stored
+  receipt only through it; a completed key found only at claim time answers
+  `request_in_progress`, as the consent withdrawal does.
+- **Download binding.** `HttpDataExportSessionBinding` binds a retained-entry ticket
+  under its own domain (`learnstack.data_export.retained_session.v1`) to the group, the
+  actor, the verified issuer and subject and the digest of the exact `Authorization`
+  header the retained credential capture recorded, and only while the source is current
+  on a ticket or chunk purpose. A ticket minted here is never honoured on the live path,
+  nor the reverse. When the BFF's entry handle refreshes the credential the binding no
+  longer matches, that download's cursor ends, and the resumed download mints a new
+  ticket.
+
+#### Web surface (P03-10 Step 4)
+
+The person's own page is the native `/account/data` document of
+[Frontend Architecture § Subject data requests](../../standards/07-frontend-architecture.md#subject-data-requests):
+the live session's group through the own routes above, the retained groups through the
+retained entry, the erasure and closure confirmations, and the export download relayed
+chunk by chunk as one attachment. Its copy names every refusal reason these routes emit,
+and the retained classes no count reaches.
+
+The administrator's surface is Studio's `/studio/data-requests` list and request page,
+the erasure page `/studio/data-requests/erasure` and a section of the member page, for a
+holder of `identity.membership.admin` in the context's group through the administrator
+routes above. It shows each request's status, dates, filer, retained counts and file
+size, never a closure and never the bundle: the page says the file reaches only the
+person. A receipt names its subject by the frozen Membership, so the list names it with
+the same audited member read the member page makes, and never reads a subject known to
+be Revoked, whose detail the API refuses. The member section files an export for that
+Membership. A Revoked Membership has no member page, so a successful revocation leads to
+the erasure page, which reads nothing about it and files the erasure behind an explicit
+confirmation that states what is erased and kept and the 24-hour window. Only the
+administrator who filed a request sees its cancel and revoke forms. Each refusal reason
+of these routes has its own sentence; the copy shares the person's catalogue where the
+wording is the same.
+
+#### Account closure filing (P03-10 Step 3)
+
+The person files the global account closure of
+[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7
+from one group, its originating group: through a live session
+(`POST identity/me/data-requests/closures`, `ProtectedAdministrationOperation` 36) or
+the retained entry (`POST closures?group=`, 37). The closure itself is global; its row
+lives in the originating tenant. Begin, the per-group fan-out and Finalize are operator
+acts, and the operator documentation owns them.
+
+- **The person alone.** Both routes are the subject's own (`OwnDataRequest`,
+  `OwnDataRequestEntry`); `DataRequestService.CreateClosureAsync` refuses an
+  administrator caller before it takes a fence, and the administrator surface has no
+  closure route, list row, read or cancellation (`DataRequestRules.Reaches` and
+  `Mutates` exclude the kind, and the reader's administrator page filters it out).
+- **What a group's administrator learns.** They never read the closure, but they see
+  the group's erasure the closure's fan-out created (`origin` `closure_fanout`, with its
+  frozen Memberships) on their page and its receipt, and a filing of theirs for a member
+  whose account is closing answers `lockey_subject_not_admitted`. Both tell a
+  participant group that one of its members is closing their account, which is
+  intended: the group's own data of that member is being erased.
+- **Creation.** The erasure's creation path with the kind `closure`: the subject's
+  exclusive User fence and the shared tenant fence, the authority recheck, the frozen
+  snapshot of the subject's Memberships of any status in the group, `audit.Designate`
+  and the one-active insert. `DataRequestEligibility` judges a closure only at its
+  creation: a Membership of any status in the group (`404 not_found` otherwise), no
+  other active closure of the subject in the group
+  (`lockey_request_already_active`) and the hold port (`lockey_blocked_hold`). It is
+  never refused for the last administrator: Begin judges that across every participant
+  tenant. Asked about a closure's execution, the port refuses to answer.
+- **A closing person files nothing.** The request guard admits every person's and
+  administrator's request only for a subject whose User is Active, read under the User
+  fence the creation holds, so a filing of any kind that reaches its insertion after a
+  Begin committed, or an administrator's filing for a person whose account is closing,
+  stores nothing and answers `409` with `lockey_subject_not_admitted` in `errors.$`.
+- **No job.** The request is `scheduled` with `executeAt` 24 hours after its creation.
+  `DataRequestFulfillmentScheduler` accepts a scheduled closure explicitly and submits
+  nothing; the receipt never reads a job phase for it and
+  `DataRequestFailureReconciler` never fails it, so a closure is never shown or stored
+  `failed`.
+- **Cancellation.** The subject cancels a scheduled closure through the ordinary
+  cancellation routes until its Begin commits, also after `executeAt`, which is the
+  earliest Begin and not a cancellation deadline. Begin holds the fence of every tenant
+  where the person holds a Membership, the originating tenant included, so a
+  cancellation either commits first or finds the closure `fulfilling` and is refused
+  with `lockey_data_request_not_cancellable`.
+- **Receipt.** The ordinary receipt: `status`, `executeAt`, and `lastRefusal` when a
+  Begin was refused (`blocked_window`, `blocked_hold`, `blocked_last_administrator`).
+  Once begun the account no longer admits a session, so no in-product status remains;
+  the receipt descriptions of the OpenAPI document say so.
+
+#### Export bundle sections
+
+What each participant writes into the bundle of
+[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 3, in
+the order the bundle carries them; the envelope and the bounds are
+`DataExportBundleBuilder`'s.
+
+**Identifier legend.** No identifier but the request's own leaves in a bundle. Where a
+record names a person, it writes one closed word instead:
+
+| Word | Means |
+|---|---|
+| `self` | The subject of the request, or one of their own Memberships |
+| `third_party` | Any other person, or another person's Membership, role or invitation |
+| `system` | The platform's own actor (audit `actor` only): a job or a provider event, not a person |
+
+| Section | Collection | Contents |
+|---|---|---|
+| `audit` | `audit_scope` | One record, `{"reach": …, "complete": false}`, with the closed reach below |
+| `audit` | `entries` | The subject's rows in that reach, newest first, capped at 8 MiB (`DataRequestLimits.AuditSectionBytes`) |
+| `customization`, `education` | none | Empty: definitions and content are tenant data; both only report `attribution_reference` |
+| `identity` | `memberships` | The snapshot Memberships: status, scope, role names, timestamps, display name, locale and every custom-field value with its revision, labels and classification, a value withheld by a withdrawn consent included |
+| `identity` | `invitations_accepted` | Oldest first: the person's own recipient address and `issued_by` |
+| `identity` | `invitations_issued` | Newest first: the invitee's address omitted, `accepted_by` as `self`, `third_party` or null; capped at 4 MiB (`DataRequestLimits.IssuedInvitationsCollectionBytes`) |
+| `tenancy` | `field_consents` | The subject's consent acts for the snapshot Memberships of the group, `recorded_by` as a closed word |
+
+- **The audit reach is what the row policy shows.** The export job runs on its group's
+  ordinary transaction, which holds no tenant-wide read witness, so
+  `audit_log_isolation` bounds what it can read. `reach` is one of three closed words:
+  `organization_and_tenant_level` (a self-requested export in an organization group:
+  that organization's rows and the tenant-level rows), `organization_only` (an
+  administrator's request in an organization group, ADR-0108 § 4) and
+  `tenant_level_only` (any request in the tenant-wide group). A self-requested export
+  therefore does **not** reach the rows recorded in the person's other organizations,
+  which ADR-0107 § 3 and ADR-0108 § 4 call "the whole tenant". Those rows are in
+  another export only where the person can file one: an export needs a Membership, of
+  any status, in its group. Rows the person caused in an organization where they have
+  none (a tenant-wide administrator acting in a branch) reach **no** export of theirs.
+- **`complete` says so.** It is `false` for every reach word, so the Step 4 screens can
+  tell the person the audit section is not their whole audit trail in the tenant;
+  `true` is reserved for a whole-tenant reach, which needs its own decision.
+- **A cap truncates, whatever the ceiling.** The builder clamps every declared section
+  and collection cap to half of `DataExport:MaxBytes`, so at the 1 MiB minimum the audit
+  section and `invitations_issued` still truncate, stated in `truncated` and on the
+  artifact receipt; `export_too_large` remains for a bundle the uncapped sections fill.
+- **Retained counts.** `attribution_reference` counts **rows**: a row of a tenant-owned
+  entity whose `UserId` columns name the subject counts once, whichever and however many
+  of those columns do, a non-`AuditableEntity` updater such as a feature flag's
+  included. A participant names the columns that are the row's subject or party instead
+  (a Membership's `UserId`, an invitation's inviter and acceptor, the federation and
+  provider-event actors) and the types reported under another kind (the request
+  receipts, and the consent table, whose `ck_membership_field_consents_actor` makes
+  every act its own subject's). `request_receipt` counts the group's requests,
+  artifacts and tickets in which **any** `UserId` column names the person, once per
+  row: the subject, the requester, and whoever created, cancelled or revoked them, so
+  an administrator who filed or cancelled a request about someone else is told the row
+  survives. `audit_metadata_reference` is exact up to a scan window per branch of the
+  reach (the group's organization, the tenant-level rows) and a lower bound past it;
+  the [Audit module](../audit/README.md#performance-budget) owns both audit statements'
+  bounds.
+- **The retained list is partial.** The tenant side reports `request_receipt`,
+  `invitation_record` (the offers the person issued or accepted: a pending offer
+  addressed to their e-mail address is retained and not locatable by person, so it is
+  not counted), `attribution_reference`, `consent_evidence` and, in the
+  tenant-wide group, `federation_actor_reference` and `provider_event_record`; the
+  operator's completion replaces the three audit kinds the Audit participant counted
+  while the request waited (`audit_actor_reference`, `audit_entity_reference`,
+  `audit_metadata_reference`) with the redaction's exact counts, so a receipt's numbers
+  change at completion, and adds `unscoped_audit_rows` for an administrator's request.
+  A kind not listed is retained and not counted, which
+  is not zero: `invitation_envelope` (the application role holds no `SELECT` on the
+  envelope table), `transport_evidence`, `execution_evidence`, `idempotency_cache` and
+  `external_copy` have no subject-keyed count. The web surface's retention explanation
+  names those classes in its copy ([Phase 03](../../roadmap/phase-03-identity-admin.md)
+  P03-10 Step 4), `unserved_group` is a closure's kind (Step 3), and Phase 11 owns
+  every retention period and the counting of the stores it purges.
+
+#### Tenant erasure (P03-10 Step 2)
+
+The erasure of [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md)
+§ 5 for one scope group; the routes are in the tables above, the
+[audit matrix](audit.md#data-request-bindings) owns its rows and the
+[data erasure runbook](../../runbooks/data-erasure.md) its operator step.
+
+- **Filing.** The person files it (live session or retained entry); an administrator
+  files it only for a person who holds no Active or Suspended Membership in the group
+  (`lockey_subject_membership_current`, and never for themselves,
+  `lockey_subject_is_requester`). The request is `scheduled` with `executeAt` 24 hours
+  later and its job queued for that time. Other refusals, each writing no request, are
+  `lockey_request_already_active`, `lockey_blocked_last_administrator` (the only
+  eligible tenant-wide administrator), `lockey_blocked_hold` and
+  `lockey_snapshot_too_large`. Cancelling until `executeAt` is the person's or the
+  filing administrator's; later it answers `lockey_data_request_window_ended`, and a
+  request that already ended `lockey_data_request_not_cancellable`.
+- **The job.** `identity.data_erasure_{tenant,organization}.v1`, one root, one
+  transaction. It takes the person's User fence and the tenant key exclusively,
+  re-judges eligibility (`blocked`), runs each participant's `EraseAsync` in key order
+  (a resumed run skips those its progress records), records the retained report and
+  parks the request `awaiting_privileged_step`.
+- **What the Identity participant erases** (`DataErasureService`, in this order): the
+  person's available export artifact and unstarted export request; the Memberships of
+  the request's frozen snapshot (role assignments removed, profile cleared, left as a
+  Revoked tombstone that keeps the person's identifier); the pending invitations the
+  person issued, in pages of 100. It touches no other person, group or tenant and not
+  the `users` row.
+- **The witness.** `DataErasureWitness` is sealed and minted only by the service from a
+  `fulfilling` erasure; `Membership.RemoveAssignmentsForErasure`,
+  `ClearProfileForErasure`, `RevokeForErasure` and `Invitation.RevokeForErasure` run
+  only under it, and the database guard admits the profile clearing only while that
+  person's erasure for the group is `fulfilling` and names the Membership
+  ([Database Standards](../../standards/05-database.md)).
+- **When the job dies.** Every write rolls back, so the request stays stored
+  `scheduled` and its receipt reads `failed`; a new filing stores the old one `failed`.
+
+#### Operator data-request steps (P03-10 Step 2)
+
+The operator's two acts of
+[ADR-0107 § 8](../../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0108 § 8](../../decisions/0108-privileged-audit-redaction.md), run by the
+[data erasure runbook](../../runbooks/data-erasure.md); the platform
+[permission matrix](permissions.md) owns the two keys and the audit matrices the slugs.
+
+- **Port and owner.** `IDataRequestOperatorOperations` (SharedKernel) is implemented by
+  `DataRequestOperatorOperations` in this module's Infrastructure, the one class that
+  enters the platform scope for these two acts; a closure's acts have their own owner,
+  below. Each call is one entered scope on `learnstack_platform`; no route and no other
+  module touches the request tables.
+- **`inspect`** (`platform.data_request.read`) lists four closed states, metadata only,
+  oldest due first and keyset-paged: `awaiting_privileged_step`, `overdue_scheduled`,
+  `stuck_fulfilling` and `expired_artifact`. Its audit is the scope's entry row.
+- **`complete_erasure`** (`platform.data_request.write`) reads and locks one erasure
+  awaiting its privileged step, builds the redaction plan from the row, has the Audit
+  executor redact on the scope's transaction, moves the request to `completed` through
+  the request guard's platform arm and writes the MUST result row under the request's
+  tenant, all in one transaction. A closure's fan-out erasure is refused.
+- **No tenant write.** The request guard admits the platform role this completion and a
+  closure's arrows of
+  [Account closure storage](../../standards/05-database.md#account-closure-storage),
+  and stamps each itself; every other request change belongs to the tenant side.
+
+#### Account closure Begin (P03-10 Step 3)
+
+The operator's Begin of
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md),
+run by the [account closure runbook](../../runbooks/account-closure.md).
+
+- **Port and owner.** `IAccountClosureOperatorOperations` (SharedKernel) is implemented
+  by `AccountClosureOperatorOperations` in this module's Infrastructure, one class in
+  one file per act, which enters the platform scope for a closure. It refuses before it
+  enters when no single `IClosureFanOut` is registered.
+- **What could never finish is refused first.** The request is read with the person's
+  raw provider subject, which only `IIdentityProviderAccountRemoval.CanRemove` sees: a
+  port that could never delete the account refuses the Begin (`RefusedProvider`). Then
+  `PlatformIdentityFences` takes the person's User fence and reads the participant
+  groups under it, with the Memberships the person holds in each, in one grouped
+  statement over `ix_memberships_user_id`; a person in more than
+  `ClosureLimits.MaximumParticipantGroups` (256) groups, served or not, or with more
+  than `ClosureLimits.MaximumTenantMemberships` (256) Memberships of any status in one
+  participant tenant, takes no tenant fence and is refused (`RefusedTooLarge`). Every
+  later step is bounded by those two numbers, so both refusals change nothing and record
+  no code: the scope ends by disposal with its entry row.
+- **One transaction.** `PlatformIdentityFences` then takes every participant tenant's
+  fence ascending, each transaction-scoped and bounded by a three-second `lock_timeout`
+  in a transaction it checks is READ COMMITTED
+  ([Database Standards](../../standards/05-database.md#the-closures-fences)); the
+  request is locked and read again with the User's status; then `blocked_window` (the
+  database clock), `blocked_hold` (`IDataRequestHoldSource`, asked for the closure
+  directly, not through eligibility) and `blocked_last_administrator` (each
+  participant tenant that allows ordinary work, read through Tenancy's lifecycle port)
+  are judged, and the refusal is recorded or the User moves Active to Closing and the
+  request to `fulfilling`. The result row names the platform sentinel. A User already
+  Closing for another closure is not moved again and is not judged for the last
+  administrator, which its first Begin judged.
+- **Then the fan-out.** After the commit the served groups go to `IClosureFanOut`,
+  each in its own pipeline act; a group that does not report a start or an adoption
+  makes the answer incomplete, and the operator repeats Begin. A repeat on a
+  `fulfilling` closure fences, judges and writes nothing and fans out again.
+
+#### Closure fan-out (P03-10 Step 3)
+
+The per-group half of a closure's Begin
+([ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)):
+after Begin's transaction commits and releases the fences, the same operator call fans
+the closure out to every participant group Begin judged served. The act is
+`fan_out_closure` (`PlatformOperations.ClosureFanOut`, audit slug
+`identity.data_request.fan_out_closure`, reason `closure_fan_out`,
+`platform.data_request.write`, the pipeline executor); it has no route.
+
+- **One admitted act per group.** `ClosureFanOut`, this module's `IClosureFanOut`, asks
+  the gate for one admission of `fan_out_closure` per group from the operator's witness
+  and ticket, so the grant is evaluated per act, and runs
+  `FanOutClosureCommand(SubjectUserId, OrganizationId)` through the operator act
+  executor for the group's tenant and organization. Groups run one after another in a
+  fixed order (tenant, the tenant-wide group first, then each organization), at most
+  `ClosureLimits.MaximumParticipantGroups` (256), the bound Begin judges, so a longer
+  list is the caller's programming error, thrown before any group runs; a refused
+  admission, a refusal and an exception are each that group's `Failed`, and only the
+  operator's cancellation stops the loop.
+- **The organization is announced**
+  ([ADR-0102](../../decisions/0102-production-tenant-onboarding.md) Amendment 2). The
+  fan-out is the one operator act whose context names an organization: the executor
+  refuses one for any other operation, the operator source opens no such frame for
+  another operation, and `OperatorActGuard` admits it only for this operation, by
+  reference, on a transaction that announced the same tenant and organization. Every
+  onboarding act still runs with none.
+- **Under the fences.** `FanOutClosureCommandHandler` checks the group's lifecycle
+  (Tenancy's `IIdentityScopeLifecycleReader`), takes the person's exclusive User fence
+  and the group tenant's shared fence through the guard, checks the lifecycle again,
+  stores a dead job's request `failed` as every creation path does, and reads the
+  person's active erasure in the group.
+- **What the group holds decides.** None, and a `completed` fan-out erasure of the
+  person: only the closure's Finalize completes one, in the transaction that closes the
+  person, so a Begin repeated across that commit finds the group done and adopts it with
+  nothing stored and nothing designated (`Adopted`), its row naming no one. None
+  otherwise, or only terminal ones: a fan-out erasure is
+  created `fulfilling`, with no window, the system actor's, its snapshot every
+  Membership of the person in the group of any status, and its erasure job is enqueued
+  on the same transaction (`Started`). A fan-out still `fulfilling`: adopted, and its
+  job enqueued again unless one is still queued, running or retrying (`Adopted`), which
+  is how a repeated Begin retries a dead job. Any erasure awaiting its privileged step:
+  adopted as it is (`Adopted`). The person's or an administrator's erasure still in its
+  window: cancelled by the system actor and replaced in the same transaction, the
+  cancellation saved first so the one-active index frees the slot (`Started`). Such an
+  erasure past its window: its own job runs it (`Waiting`); a repeated Begin adopts it
+  once it awaits its privileged step.
+- **The database is the witness.** The request guard admits a request born `fulfilling`
+  only as a closure's fan-out erasure of a person whose User is Closing, read under the
+  User fence; a refused insertion rolls the group back, the replaced erasure's
+  cancellation included, and answers `lockey_subject_not_admitted`. A group whose tenant
+  or organization stopped allowing ordinary work after Begin judged it answers
+  `not_found`; both are the group's `Failed`.
+- **The job.** The ordinary erasure job of the group's scope runs the fan-out from
+  `fulfilling`, so it never asks eligibility again and never blocks; it erases every
+  Membership of the snapshot, a Revoked tombstone's profile included, records the
+  retained report and parks the request `awaiting_privileged_step`. Only the closure's
+  [Finalize](#account-closure-finalize-p03-10-step-3) completes it; `complete_erasure`
+  refuses it.
+- **Audit.** One MUST row per group in that tenant, about the request created, adopted
+  or waited for, with the operator in `metadata.operator` and the reason
+  `closure_fan_out`, never the ticket; a replaced erasure travels in its `changes`.
+  These rows are the closure's evidence in every affected tenant.
+
+#### Account closure Finalize (P03-10 Step 3)
+
+The operator's Finalize of
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0108 § 8](../../decisions/0108-privileged-audit-redaction.md), run by the
+[account closure runbook](../../runbooks/account-closure.md#finalize):
+`finalize_closure` (`PlatformOperations.ClosureFinalize`, audit slug
+`platform.closure.finalize`, intent slug `platform.closure.finalize_attempt`, reason
+`closure_finalize`, `platform.data_request.write`), routed at
+`POST /api/platform/v1/data-requests/{requestId}/finalize-closure`.
+
+- **Owner.** The Finalize part of `AccountClosureOperatorOperations`, whose constructor
+  takes `IIdentityProviderAccountRemoval`; the class is the port's one holder. Its
+  answers are `ClosureFinalizeOutcome`: `Finalized`, `AlreadyFinalized`, `NotFound`,
+  `NotClosure`, `NotFinalizable` (never begun or cancelled), `GroupsPending` and the
+  provider's `ProviderRefused`, `ProviderUnavailable` and `ProviderUncertain`.
+- **Ready.** Every required group's newest erasure of the person, of any origin, must
+  await its privileged step, or have completed at or after this closure's Begin (the
+  closure's own update stamp), and its frozen Memberships must include every Membership
+  the person holds in the group. Every served group is required, and so is an unserved
+  group whose newest erasure is the closure's own fan-out and still open: its job began
+  before the group stopped allowing ordinary work, and nothing completes a fan-out
+  erasure once the person is Closed. An erasure completed before the person was admitted
+  again and began closing never stands in for a fan-out that did not run. Any other
+  unserved group needs none.
+- **Transaction 1.** `PlatformIdentityFences.AcquireUserAsync`: the person's User fence
+  alone and the participant groups read under it, because this transaction moves no
+  User and no request, so no participant tenant's identity writes wait for its
+  redaction; the closure locked; the account's status, raw provider subject and subject
+  key read; the readiness; then the redaction through the scope's `RedactAuditAsync`:
+  one `AuditRedactionPlan.ForClosureTenant` per participant tenant, served or not, with
+  every Membership the person holds there, then `ForClosureSentinel` by the subject key.
+  The intent row carries the summed `AuditRedactionAggregate` and commits with the
+  redaction. Groups past the bound (`participants_beyond_bound`) and a tenant whose
+  Memberships the plan refuses (`redaction_plan_refused`), which Begin refused while the
+  person was Active, are defects logged by their closed names (error 7122).
+- **The provider.** `RemoveAsync` with the raw subject, before any other statement, so
+  nothing is held in the database while it runs. Removed or absent goes on; refused,
+  unavailable, uncertain or a throw stops the act with a result row naming the stop,
+  the closure `fulfilling` and the User Closing. The raw subject is never logged,
+  audited, metered or returned.
+- **Transaction 2.** `PlatformIdentityFences.AcquireAsync`: the User fence and every
+  participant tenant's fence, as Begin; the closure, the account, the participant set
+  and the readiness judged again; then `users` Closing to Closed with
+  `provider_subject` NULL, every participant erasure awaiting its privileged step
+  locked and completed with its tenant's retained audit kinds (a fan-out one through the
+  closure arm, the person's or an administrator's own through Step 2's arm; one that
+  `complete_erasure` finished meanwhile is left as it completed), this closure and
+  every other open closure of the person completed with the summed retained kinds and
+  `unserved_group` (a never-begun one through the same arm, from `scheduled`), and the
+  result row with closed counts.
+- **Repeat.** Every step is idempotent: a repeat after a stop or a crash redacts again,
+  which changes no row, writes its own intent row, finds a deleted account absent and
+  finishes; a repeat after the finish answers `AlreadyFinalized` and writes only its
+  entry row. A result row the audit store refuses after the provider step is the
+  retryable unavailable, not the audit refusal, because the account may already be
+  deleted.
+
 ## Entity-relationship diagram
 
 ```mermaid
@@ -959,7 +1531,7 @@ above.
 | `Permission_Definitions_DeclareScope` | Implemented for the finite foundation and live operation contracts | `IdentityFoundationConventionTests`, `OperationPermissionConventionTests` and actual command metadata; [catalogue](../../standards/21-architecture-tests-catalogue.md) owns live authorization controls |
 | `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for all current models, including contextual Identity | `DataProtectionConventionTests`; complete census and neutral-name omission controls |
 | `Identity_Seed_Uses_Finite_Adopted_Manifests` | Implemented; no-write/interrupted/conflict actual seed controls | `IdentityFoundationConventionTests` / `IdentitySeederTests`; [Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification |
-| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Implemented actual app-role races, live Membership transitions and Organization lifecycle/default invariants | `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`, `MembershipAdministrationRaceTests` and `TenancyAdministrationRaceTests`; broader closure/locators remain P03-10 |
+| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Implemented actual app-role races, live Membership transitions and Organization lifecycle/default invariants | `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`, `MembershipAdministrationRaceTests` and `TenancyAdministrationRaceTests`; the closure's platform acquirer has its own leg, `IdentityPlatformFenceConventionTests`, and its races are `AccountClosureBeginTests` |
 | Per-sink PII canaries/child audit/MUST rollback | Implemented actual child snapshots/redacted diffs, MUST rollback and value-bearing diagnostic controls | `IdentitySeederTests`, `IdentityDiagnosticSinkTests`, `TenantExistingBindingAdmissionTests` and canonical [data-protection proof ownership](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership); classification alone does not establish sink safety |
 | `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Implemented global storage/creation, exact self-entry HTTP and deliberate native activation | `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests`, `GlobalIdentityBootstrapTests`, `IdentitySelfEntryHttpTests` and native `session-store.test.ts`; [Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification and reviews |
 

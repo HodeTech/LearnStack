@@ -123,6 +123,68 @@ public sealed class Membership : AuditableEntity<MembershipId>, IAggregateRoot<M
         Status = MembershipStatus.Revoked;
         return Result<None>.Ok(None.Value);
     }
+
+    /// <summary>
+    /// Whether nothing is left for an erasure to change: the Membership is the Revoked tombstone, holds no role
+    /// assignment and its profile is cleared (ADR-0107 § 5, § 6).
+    /// </summary>
+    public bool IsErased => Status == MembershipStatus.Revoked && _roleAssignments.Count == 0 && Profile.IsCleared;
+
+    /// <summary>
+    /// ADR-0107 § 5: deletes every role assignment, of a Membership of any status, under the erasure witness. Idempotent:
+    /// a Membership with no assignment changes nothing.
+    /// </summary>
+    public Result<None> RemoveAssignmentsForErasure(DataErasureWitness witness, DateTimeOffset at, UserId actor)
+    {
+        if (!Erasable(witness)) return IdentityFailures.BusinessRule();
+        if (_roleAssignments.Count == 0) return Result<None>.Ok(None.Value);
+        StampErasure(at, actor);
+        _roleAssignments.Clear();
+        return Result<None>.Ok(None.Value);
+    }
+
+    /// <summary>
+    /// ADR-0107 § 5: clears the display name and locale to <see langword="null"/> and the custom values to <c>[]</c>, of a
+    /// Membership of any status, under the erasure witness. Idempotent: a cleared profile changes nothing.
+    /// </summary>
+    public Result<None> ClearProfileForErasure(DataErasureWitness witness, DateTimeOffset at, UserId actor)
+    {
+        if (!Erasable(witness)) return IdentityFailures.BusinessRule();
+        if (Profile.IsCleared) return Result<None>.Ok(None.Value);
+        StampErasure(at, actor);
+        Profile.Clear();
+        return Result<None>.Ok(None.Value);
+    }
+
+    /// <summary>
+    /// ADR-0107 § 5: an Active or Suspended Membership becomes the Revoked tombstone that keeps its <see cref="UserId"/>,
+    /// under the erasure witness. Idempotent: a Revoked one changes nothing, so its row, which admits no UPDATE, is never
+    /// written.
+    /// </summary>
+    public Result<None> RevokeForErasure(DataErasureWitness witness, DateTimeOffset at, UserId actor)
+    {
+        if (!Erasable(witness)) return IdentityFailures.BusinessRule();
+        if (Status == MembershipStatus.Revoked) return Result<None>.Ok(None.Value);
+        SoftDelete(at, actor);
+        Status = MembershipStatus.Revoked;
+        return Result<None>.Ok(None.Value);
+    }
+
+    /// <summary>
+    /// The witness covers this Membership's tenant, group and person, and the stored lifecycle is coherent: deleted
+    /// exactly when Revoked, as <c>ck_memberships_lifecycle</c> requires.
+    /// </summary>
+    private bool Erasable(DataErasureWitness? witness) => witness is not null && witness.Covers(TenantId, OrganizationId, UserId)
+        && IsDeleted == (Status == MembershipStatus.Revoked);
+
+    /// <summary>
+    /// The root is stamped as every ordinary change stamps it, except a Revoked tombstone's: the contextual guard admits no
+    /// UPDATE of a Revoked row, so its contained rows change alone and the change is recorded in the erasure's audit row.
+    /// </summary>
+    private void StampErasure(DateTimeOffset at, UserId actor)
+    {
+        if (Status != MembershipStatus.Revoked) MarkUpdated(at, actor);
+    }
 }
 
 [TenantOwned]
@@ -163,6 +225,19 @@ public sealed class MembershipProfile : IOrganizationScoped
     }
 
     internal void SetCustomFields(string json) => CustomFieldsJson = json;
+
+    /// <summary>The three personal columns hold nothing: the state ADR-0107 § 5's clearing leaves.</summary>
+    public bool IsCleared => DisplayName is null && PreferredLocale is null && CustomFieldsJson == EmptyCustomFields;
+
+    /// <summary>The clearing the contextual guard admits on a Membership of any status under the erasure witness.</summary>
+    internal void Clear()
+    {
+        DisplayName = null;
+        PreferredLocale = null;
+        CustomFieldsJson = EmptyCustomFields;
+    }
+
+    private const string EmptyCustomFields = "[]";
 }
 
 [TenantOwned]

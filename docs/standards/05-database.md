@@ -734,9 +734,9 @@ owner in this document; neither is copied here.
 
 `audit_log` deliberately omits the template's
 `ix_<table>_tenant_id_organization_id`: its readers are tenant-scope, so the arm that
-fires is `app.scope = 'tenant'`, which no index serves, and a fifth index on a
+fires is `app.scope = 'tenant'`, which no index serves, and such an index on a
 high-volume append-only table is a write cost paid on every row for a predicate arm
-nothing shipped takes. The four indexes it does carry, and the reasoning, are in
+nothing shipped takes. The indexes it does carry, and the reasoning, are in
 [Audit Subsystem § 7](../architecture/31-audit-subsystem.md).
 
 They ship in a **fourth migration chain**, owned by
@@ -1094,13 +1094,17 @@ Step 3; contextual Membership/Role grants are implemented in Step 4.
 | Table | `learnstack_app` | `learnstack_platform` | `learnstack_outbox_admin` |
 |---|---|---|---|
 | `identity_authority` | `SELECT` | — | — |
-| `users` | `SELECT` and only the [initial INSERT columns](#global-owners-and-privileges); no UPDATE/DELETE/TRUNCATE | — | — |
-| `memberships` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
+| `users` | `SELECT` and only the [initial INSERT columns](#global-owners-and-privileges); no UPDATE/DELETE/TRUNCATE | `SELECT` of `id`, `status`, `provider_subject` and `subject_key`; `UPDATE` of `status` and `provider_subject`, which the [closure's trigger exception](#the-users-trigger-exception) admits for two transitions only | — |
+| `memberships` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | `SELECT` of `id`, `tenant_id`, `organization_id`, `user_id`, `status` and `deleted_at` only ([closure participants](#the-platform-grants)) | — |
 | `membership_profiles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
-| `membership_role_assignments` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
-| `roles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
-| `role_permission_grants` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
+| `membership_role_assignments` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | `SELECT` of `tenant_id`, `membership_id` and `role_id` only ([last-administrator read](#the-platform-grants)) | — |
+| `roles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | `SELECT` of `id`, `tenant_id`, `built_in_key`, `permission_scope`, `deleted_at` and `deleted_by` only ([last-administrator read](#the-platform-grants)) | — |
+| `role_permission_grants` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | `SELECT` of `tenant_id`, `role_id`, `permission_scope` and `permission_key` only ([last-administrator read](#the-platform-grants)) | — |
 | `federation_connections` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE, because the row ends as a tombstone | `SELECT` of `id`, `tenant_id`, `state` and `deleted_at` only ([ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 11); exact [projection grant](#federation-operator-projection) | — |
+| `data_subject_requests` | `SELECT, INSERT`; `UPDATE` of the status, `row_version`, progress, result, refusal, failure, completion and update-stamp columns; no DELETE | `SELECT` of sixteen closed columns, no requester or actor stamp; `UPDATE` of status, `row_version`, `completed_at`, `result` and `last_refusal`, which the guard's [platform arm](#data-request-operator-storage) admits for the erasure's completion and the [closure's arrows](#the-request-guards-closure-arrows) only | — |
+| `data_export_artifacts` | `SELECT, INSERT`; `UPDATE` of status, `purged_at`, `row_version` and the update stamps | `SELECT` of `id`, `tenant_id`, `request_id`, `status` and `expires_at` only ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8) | — |
+| `data_export_tickets` | `SELECT, INSERT`; `UPDATE (consumed_at)` | — | — |
+| `data_export_chunks` | `SELECT, INSERT, DELETE` | — | — |
 | `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
@@ -3917,6 +3921,7 @@ CREATE INDEX ix_background_jobs_parent ON background_jobs (tenant_id, parent_job
 CREATE INDEX ix_background_jobs_recipient ON background_jobs (tenant_id, recipient_id);
 CREATE INDEX ix_background_jobs_current_attempt ON background_jobs (tenant_id, id, current_attempt_id);
 CREATE INDEX ix_background_jobs_final_outcome ON background_jobs (tenant_id, id, final_outcome_attempt_id);
+CREATE INDEX ix_background_jobs_definition ON background_jobs (tenant_id, definition_key, organization_id);
 CREATE INDEX ix_background_job_attempts_outcome ON background_job_attempts (tenant_id, job_id, final_outcome_attempt_id);
 CREATE INDEX ix_background_job_reservations_capacity ON background_job_reservations (tenant_id, capacity_group);
 CREATE INDEX ix_background_job_recipients_job ON background_job_recipients (tenant_id, accepted_job_id);
@@ -4745,8 +4750,8 @@ UserId. The global class is not an exemption from transaction/capture guards.
 | `identity_authority` | Platform-scoped singleton, `id = 1` primary key and CHECK; immutable unique `authority_id uuid`; one current exact issuer URI. No tenant filter and no User/person fields. |
 | `users.id` | Permanent UserId UUIDv7 primary key, allocated through the existing injected ID source only after serialized absence is established. |
 | `users.authority_id`, `subject_key` | AuthorityId references the singleton's stable authority UUID; `subject_key bytea` has exactly 32 bytes. Unique `(authority_id, subject_key)` has no partial predicate and survives closure. |
-| `users.provider_subject` | Nullable, sensitive exact opaque provider subject. Active requires a nonempty value; Closed requires NULL. Closing permits NULL and retains a bounded nonempty value only while the separately admitted closure owner needs it. |
-| `users.status` | Closed CHECK set `Active`, `Closing`, `Closed`; ordinary bootstrap inserts Active only. Closing and Closed refuse new admission. |
+| `users.provider_subject` | Nullable, sensitive exact opaque provider subject. Active requires a nonempty value; Closed requires NULL. Closing permits NULL; the closure's [trigger exception](#the-users-trigger-exception) keeps the value from Active to Closing, for the provider removal, and removes it from Closing to Closed. |
+| `users.status` | Closed CHECK set `Active`, `Closing`, `Closed`; ordinary bootstrap inserts Active only. Closing and Closed refuse new admission. Only the platform session's closure moves it, Active to Closing and Closing to Closed, under the [trigger exception](#the-users-trigger-exception); nothing returns to Active. |
 | `users.creation_audit_id`, `creation_audit_timestamp` | Immutable complete central-audit key, allocated centrally with timestamp normalized once to PostgreSQL microsecond precision. Deferred creation guards verify it before commit; no perpetual cross-module foreign key or purge veto. |
 | User audit/concurrency fields | All six inherited audit columns and the existing row-version convention. CHECK requires `deleted_at` and `deleted_by` to remain NULL: closure uses status, not soft deletion. |
 
@@ -4846,7 +4851,11 @@ BEFORE DELETE and BEFORE TRUNCATE guards preserve bindings for every role,
 including owner/definer execution. FORCE RLS does not govern TRUNCATE, and absent
 app grants do not constrain the owner. DDL-capable disabling/dropping of guards
 is outside this trust boundary; no admitted definer body performs such DDL.
-Later lifecycle/profile writers need separately accepted grants and guards.
+Later lifecycle/profile writers need separately accepted grants and guards. The one
+lifecycle writer is the platform session's closure, under its column grant and the
+[trigger exception](#the-users-trigger-exception) of
+[Account closure storage](#account-closure-storage); the policy and the application
+role are unchanged by it, and the platform role bypasses the policy.
 
 <a id="proposed-global-central-audit-branch"></a>
 
@@ -5040,6 +5049,21 @@ complete ordered User/tenant plan is preheld. The exclusive User fence remains
 held transactionally through check and completion. Profile-only updates,
 suspension/revocation and assignment removals do not automatically acquire a
 User fence; their required tenant mode still follows actual protected changes.
+The one exception to a Revoked Membership's immutability is the erasure's clearing
+([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 5):
+the guard passes an `UPDATE` of a Revoked Membership's profile that sets the display
+name and the locale to NULL and the custom values to `[]`, and only while the
+subject's exclusive User fence is held on the connection and that subject's `erasure`
+request for the Membership's group is `fulfilling` and names that Membership in its
+frozen snapshot; such an update requires the tenant key EXCLUSIVE. The request guard
+admits a request born `fulfilling` only as a closure's fan-out erasure of a subject who
+is Closing ([the User status witness](#the-user-status-witness)), so the application
+role cannot create that witness for a person no closure has begun. Every other write
+under a Revoked parent still raises `P0304`, apart from the assignment removals the
+guard already admitted; the profile's `DELETE` is refused earlier, by the missing
+grant.
+`DataErasureGuardTests` removes each condition alone as `learnstack_app`, and
+`EducationStructureTests` pins the function body.
 Exclusive User mode retains the adopted per-User admission serialization, rather
 than merely excluding closure. A shared admission alternative needs a separate
 decision. No additional callable User reader or synthetic preparation trigger is
@@ -5055,7 +5079,23 @@ EXCLUSIVE mode and establishes the total invariant. A shared nonadmin Membership
 write cannot enter an incomplete tenant. Later closure/
 status writers take the same target User fence first and every affected exclusive
 tenant key next, in stable order, retaining them through the status change and
-completion. P03-10 owns and proves that production workflow. They cannot make
+completion. P03-10 owns and proves that production workflow. The database witness of
+that order is the closure's [trigger exception](#the-users-trigger-exception): it
+refuses the status change unless the User key and every participant tenant key are
+held exclusively on the writing connection.
+
+> **Erratum (2026-11-22, [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7
+> and [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) Amendment 8).**
+> "Through the status change and completion" means through the transaction that makes the
+> User nonadmitting; the per-group erasure that follows runs as the application role and
+> does not retain the keys. A tenant that does not allow ordinary work is an explicit,
+> named exception to the final-administrator check, and its data is reported as an
+> unserved group. The Finalize that makes the User Closed holds the User key alone
+> through its first transaction, the redaction with its intent row, which moves no User
+> and no request, and the User key with every participant tenant key through its second,
+> the move to Closed with the completions, and no key between them, while the identity
+> provider deletes the account (2026-11-23).
+ They cannot make
 the final administrator ineligible without a
 separately accepted recovery/termination contract; closure and Archived status
 are not implicit exceptions.
@@ -5131,8 +5171,10 @@ transition. The fixture migration owner obeys the same User-then-affected-tenant
 order; it supplies no isolation proof. Actual Membership mutations still run as
 `learnstack_app`. Restore guard/policy in `finally` and verify exact restored
 body/ACL/trigger/policy census plus owner UPDATE refusal. Dirty/clean controls
-prove both the accommodation and restoration. No production status writer or
-grant follows; eligibility is otherwise immutable in this foundation.
+prove both the accommodation and restoration. The fixtures add no status writer or
+grant; the one production writer is the platform session's closure under the
+[trigger exception](#the-users-trigger-exception), and eligibility is otherwise
+immutable in this foundation.
 
 <a id="proposed-adoption-text-and-qualification"></a>
 
@@ -5702,8 +5744,15 @@ writers; qualification remains source-bound in the phase Status. SMTP adds no te
 setter. The [federation host-alias read](#federation-host-alias-read) is the fourteenth
 logical setter; it adds no definer and no physical context writer. The
 [operator subject resolution](#operator-subject-resolution) is the sixteenth definer; it
-adds no logical tenant setter. The operator act executor that installs an operator act's
-resolved context is a fifth logical writer of the context accessor, beside the four of
+adds no logical tenant setter. The
+[retained own data-request scope](#retained-own-data-request-scope) is the seventeenth
+definer and the fifteenth logical tenant setter, implemented by the same four physical
+writers. The [User status witness](#the-user-status-witness) of the data-request guard
+is the eighteenth definer; it adds no logical tenant setter. The
+[delayed mirror's subject status](#the-delayed-mirrors-subject-status) is the nineteenth
+definer; it adds no logical tenant setter either. The operator act executor
+that installs an operator act's resolved context is a fifth logical writer of the
+context accessor, beside the four of
 [ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md) (the Hub
 correlation writer is the one not yet built); the earlier counts in this section
 describe their own slices
@@ -6346,8 +6395,8 @@ answers exactly that:
 - **Caller.** `OperatorSubjectResolver`, which derives the key with the one
   `IdentitySubjectKey` implementation under the deployment's qualified authority, so a
   request supplies the provider subject and nothing else. The body, ACL, owner and
-  volatility are pinned by the definer census (sixteen definers), and the callers of the
-  function and of its port by
+  volatility are pinned by the definer census in `GlobalIdentitySchemaTests`, and the
+  callers of the function and of its port by
   [`Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject`](21-architecture-tests-catalogue.md#only_the_operator_administrator_core_resolves_an_operator_subject).
 
 A Membership written under that answer still passes the ordinary admission guard, which
@@ -6503,8 +6552,7 @@ after the change), `IdentityAuthorityRebindTests` (the run end to end, every ref
 class and posture drift, the continuity rules, an audit failure rolling the change back,
 a killed session, a lost commit acknowledgement and a reconciliation that waits) and
 `IdentityAuthorityRebindToolTests` (the offline tool as a child process). The census
-counts are in `GlobalIdentitySchemaTests` (thirty functions, sixteen definers, thirty
-triggers) and the head pin in `MigrationRollbackTests`.
+counts are in `GlobalIdentitySchemaTests` and the head pin in `MigrationRollbackTests`.
 
 ## Operator recovery storage
 
@@ -6593,3 +6641,476 @@ Real PostgreSQL as each role:
   retryable outage.
 - `PlatformOperatorHttpTests` and `PlatformAdminGateTests`: the routes, their
   statuses and contract, and the pair of permissions, each held alone.
+
+## Retained own data-request scope
+
+**Derives from:**
+[ADR-0106 § 9](../decisions/0106-subject-data-requests-authority-and-status.md),
+[ADR-0107 § 8](../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0095 Amendment 5](../decisions/0095-revision-pinned-membership-custom-fields.md). A
+person reads and files data requests after their Membership is gone, and a Suspended
+person does so at all, through the consent subject's model. This section owns the one
+definer, its two owner arms and the setter that consumes its result; the
+[phase Status](../roadmap/phase-03-identity-admin.md) owns the native operations that
+call it and their qualification.
+
+### The function
+
+`public.fn_identity_own_data_request_scopes(p_actor uuid, p_host_tenant uuid,
+p_host_organization uuid, p_mode text, p_organization uuid, p_after_organization uuid,
+p_limit integer)` → rows of `(tenant_id uuid, organization_id uuid)`.
+
+- **Answer.** The scope groups in the host's tenant in which the actor holds a
+  Membership of any status, a Revoked tombstone included, or has any data request; on an
+  organization host only that organization's group, never the tenant-wide group or a
+  sibling branch. Distinct, at most twenty, ordered by organization with the tenant-wide
+  group first under the nil key. No Membership, request, status, profile or provider
+  data, and no write.
+- **Modes.** `list` requires a NULL `p_organization`; its optional
+  `p_after_organization` is the last key of the previous page, the nil UUID standing for
+  the tenant-wide group. `select` proves one exact group (`p_organization` NULL for the
+  tenant-wide group), takes no cursor and a limit of exactly one.
+- **Refusals,** all `23514`: a session user other than `learnstack_app`; any announced
+  `app.tenant_id`, `app.organization_id`, `app.scope`, `app.identity_authority_id` or
+  `app.identity_subject_key`; a transaction that is not READ ONLY and READ COMMITTED; a
+  NULL, nil or SystemActor actor; a NULL, nil or sentinel host tenant; a nil host or
+  selected organization; any mode, limit or argument combination outside the two modes.
+- **Confinement.** `LANGUAGE plpgsql VOLATILE SECURITY DEFINER`, owned by the
+  NOBYPASSRLS `learnstack_migration`, fixed `search_path=pg_catalog`,
+  `REVOKE ALL FROM PUBLIC`, `EXECUTE` to `learnstack_app` only. The actor is not
+  authenticated by SQL: as for the consent definer, only normalized verified binding
+  state supplies `p_actor`, and the caller census confines the one caller,
+  `OwnDataRequestScopeLookup`, which runs it on a physically READ ONLY owner in a child
+  scope and closes that owner before any observation escapes.
+
+### The two owner arms
+
+`memberships_isolation` and `data_subject_requests_isolation` each gain one USING arm,
+beside their unchanged application arm and unchanged WITH CHECK; the Membership policy
+keeps its provider-ingress and self-discovery arms. Both arms are written identically:
+
+```sql
+current_user='learnstack_migration' AND session_user='learnstack_app'
+AND NULLIF(current_setting('app.tenant_id',true),'') IS NULL
+AND NULLIF(current_setting('app.organization_id',true),'') IS NULL
+AND NULLIF(current_setting('app.scope',true),'') IS NULL
+AND NULLIF(current_setting('app.identity_authority_id',true),'') IS NULL
+AND NULLIF(current_setting('app.identity_subject_key',true),'') IS NULL
+AND current_setting('transaction_read_only')='on'
+```
+
+An arm admits exactly the state the function requires on entry, and only to code that
+runs as the owner, that is, to a definer body. It is state-bound, not caller-bound: a
+policy cannot see which function is running. No other definer reads either table in that
+state: the self-discovery and creation definers require an identity announcement, the
+Membership guards run inside a tenant's write, the provider definers run for their own
+login role, the consent definer reads only its own table, and no other definer body
+names `data_subject_requests`. The definer census pins every body, so a new definer that
+would read through these arms is a reviewed change. The arms are read-only by their own
+predicate; the artifact, ticket and chunk tables gain none.
+
+### The setter
+
+`OwnDataRequestScope` is the fifteenth logical tenant setter
+([Security § The out-of-band setters](11-security.md#the-out-of-band-setters)). It
+consumes a single-use immutable operation/actor/subject/real-host/group/mode witness
+(`OwnDataRequestScopeWitness`) on a fresh physical owner: `list` and `read` are physical
+READ ONLY, `create`, `cancel`, `ticket`, `chunk` and `revoke` ordinary READ WRITE. It
+announces exactly the witness's group through the one witness-aware core, never joins or retargets
+an owner, and supplies no Membership, ordinary native session or tenant-wide
+`app.scope`. Its context origin, `HostAndOwnDataRequestScope`, reaches only operations
+of the `OwnDataRequestEntry` policy kind. Its one minter is the native retained-entry
+source, `OwnDataRequestSubjectSource`, which is also the function's one observer through
+the confined lookup and runs before the context exists; the entry itself is owned by
+[Security § Retained consent-subject admission](11-security.md#retained-consent-subject-admission).
+
+### Proof
+
+Real PostgreSQL as `learnstack_app` and as each other role, in
+`OwnDataRequestScopeTests`: the subject's exact groups on a tenant and an organization
+host, paging and selection, two tenants and two organizations, Suspended and Revoked
+Memberships and a request-only group retained, every refused state and argument, the
+function's ACL and owner, the two arms shut to a session and to every other role, a
+dirty probe that states exactly what the arms admit, the request policy against an
+independent canonicalized oracle, the confined lookup, and the setter's captured owner.
+The Membership policy oracle is in `GlobalIdentitySchemaTests`, and the census counts
+are there too; the head pin is in `MigrationRollbackTests`.
+
+## Data-request operator storage
+
+**Derives from:**
+[ADR-0107 § 8](../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 8 and § 9. The operator's
+data-request inspection and erasure completion run on `learnstack_platform` in the
+platform scope. The Identity migration
+`20261122200000_grant_platform_data_request_operations` carries the guard arm, the grant
+and the two indexes below; it is forward-only, and the head of the Identity chain is
+pinned in `MigrationRollbackTests`.
+
+### The request guard's platform arm
+
+`fn_identity_data_request_guard` gains one branch for a session whose `session_user` and
+`current_user` are both `learnstack_platform`, ahead of the application role's arms,
+which are unchanged character for character: a unit test compares them with the
+definition the request storage migration installed. The
+[account closure migration](#account-closure-storage) replaces the function again: it
+keeps this arrow as it is, adds the closure's arrows to the same branch and changes the
+application's INSERT arm in one pinned place. The branch admits an `UPDATE` and nothing
+else, and only:
+
+- the arrow `erasure: awaiting_privileged_step → completed` of an erasure whose origin
+  is not `closure_fanout`, and the
+  [closure's arrows](#the-request-guards-closure-arrows); every other arrow, status and
+  kind is refused (`Data request transition refused.`);
+- with every column but the status, `row_version`, `completed_at`, `result` and
+  `last_refusal` unchanged as the statement presents them, `updated_at` and `updated_by`
+  included, and `row_version` stepped by exactly one
+  (`Data request immutable state refused.`); `last_refusal` changes on a closure's
+  refusal record alone (`Data request refusal record refused.`);
+- with `result` changed only in the audit log's four retained kinds,
+  `audit_actor_reference`, `audit_entity_reference`, `audit_metadata_reference` and
+  `unscoped_audit_rows`, so the tenant side's record stays as its participants wrote it
+  (`Data request result refused.`).
+
+The branch stamps `updated_at` from the database clock, never earlier than the row's
+last stamp, `updated_by` as `UserId.SystemActor` and `completed_at` as that
+`updated_at`, overriding whatever the statement set. Columns a trigger assigns need no
+column grant, so the platform role's `UPDATE` grant is the four columns ADR-0107 § 8
+lists and the closure's `last_refusal`. The role holds no `INSERT` or `DELETE`; the
+application role cannot take the platform's arrow, and the platform role cannot take
+one of the application's. The arrow refuses an erasure whose origin is
+`closure_fanout`, which only a closure's Finalize completes (ADR-0107 § 7), under the
+[closure's arrows](#the-request-guards-closure-arrows) the same branch carries.
+
+### The artifact read
+
+`learnstack_platform` holds `SELECT` of `id`, `tenant_id`, `request_id`, `status` and
+`expires_at` on `data_export_artifacts`: what the inspection's expired-artifact list
+filters, joins, orders and shows, with the group read from the joined request. No
+subject, size, key version, truncation, actor or purge time is granted, because the
+lifecycle CHECK makes `status IN ('available','expired')` the rows with no `purged_at`,
+and nothing on `data_export_tickets` or `data_export_chunks`. Column privileges are read
+from the attribute ACLs, as for every column-grant table.
+
+### The inspection indexes
+
+```sql
+CREATE INDEX ix_data_subject_requests_operator_due ON public.data_subject_requests
+    (status, (COALESCE(execute_at, created_at)), id)
+    WHERE status IN ('scheduled','fulfilling','awaiting_privileged_step');
+CREATE INDEX ix_data_export_artifacts_unpurged_expiry ON public.data_export_artifacts (expires_at, id)
+    WHERE status IN ('available','expired');
+```
+
+Each request list filters one status and orders by when the request fell due, then by
+its identifier; the artifact list orders by expiry. A keyset cursor seeks past the last
+row. A test asks PostgreSQL for the plan of each statement the inspection runs, with and
+without a cursor, and requires an ordered scan of its index with no sort. The migration
+builds both without `CONCURRENTLY`, inside its transaction, as the earlier operator
+indexes were.
+
+### Proof
+
+Real PostgreSQL as each role:
+
+- `DataRequestStorageControlTests`: on erasures the application role created and moved
+  through its own arrows, the platform role completing one through the arm and the
+  stamps it writes, and each refused variant: a missing or doubled version step, a
+  result that changes, drops or adds a tenant-side kind, every other arrow from the
+  awaiting state, an application arrow on a scheduled erasure, a column outside the
+  grant, a `DELETE` and a second completion; and the application role refused the
+  platform's arrow and a result change.
+- `DataRequestStorageTests`: the exact grant matrix of the four tables, the five
+  artifact columns, and the platform role refused every other column, table and an
+  export's arrow.
+- `DataRequestOperatorOperationsTests`: the four lists and their order, the cursors, the
+  entry row, the plans, and the completion's one transaction from the row's own subject,
+  its result row, its repeat, its refusals, its failures, a lost commit and two
+  concurrent completions.
+- `PlatformAdminScopeTests`: the redaction bound to its operation, on the scope's own
+  transaction and before the result row, faulting the scope when it fails, and refused
+  without an executor.
+- `PlatformOperatorHttpTests` and `PlatformAdminGateTests`: the routes, their statuses
+  and contract, and the pair of permissions, each held alone.
+
+## Account closure storage
+
+**Derives from:** [ADR-0107 §§ 7 and
+8](../decisions/0107-data-request-fulfillment-and-account-closure.md) and [ADR-0072
+Amendment 8](../decisions/0072-application-owned-identity-bootstrap.md). A global
+account closure moves a User Active to Closing and Closing to Closed on
+`learnstack_platform` in the platform scope, and erases each participant group as the
+application role. The Identity migration `20261123100000_admit_account_closure` carries
+the grants, the trigger exception, the request guard's closure arrows and the User
+status witness below. The forward migration `20261123120000_admit_closure_finalize` then
+replaces the request guard so that Finalize's arrow also takes a closure of the subject
+that was never begun, and grants the request's update stamp; and
+`20261123130000_harden_closure_request_guard` replaces it once more, so that the
+application role writes no closure but to cancel a scheduled one and asks the subject's
+status only after the snapshot. All three are forward-only, and the head of the Identity
+chain is pinned in `MigrationRollbackTests`. Every arrow reads its witnesses in SQL on
+the connection that writes: the subject's User status, the request's own state and the
+advisory fences that connection holds. None of them trusts a flag a caller passes.
+
+### The closure's fences
+
+A closure's fences are the subject's User key and the key of every tenant in which the
+subject holds a Membership of any status, a Revoked tombstone included, each held
+exclusively on the writing connection, with the canonical key of
+[Lock, snapshot and adoption conditions](#lock-snapshot-and-adoption-conditions). Each
+check below observes them with `fn_identity_lock_held` and acquires none. It reads the
+participant tenants from `memberships` through `ix_memberships_user_id`, once per
+distinct tenant. Memberships are never deleted and a new one needs the subject's
+exclusive User key, so the participant set cannot change while that key is held.
+Transaction-level keys end at the commit, so a second transaction takes them again.
+
+**The acquirer.** One class takes them on the platform connection,
+`PlatformIdentityFences` in the Identity infrastructure, through the platform scope's
+statement facade and nothing else: first it refuses any transaction whose
+`transaction_isolation` is not `read committed`, because the participant read must take
+its snapshot after the User key is granted; then
+`SELECT pg_catalog.set_config('lock_timeout', '3s', true)`, so every wait of the
+transaction is bounded; then `pg_catalog.pg_advisory_xact_lock` of the subject's User
+key; then the participant groups, read under that key in one grouped statement through
+`ix_memberships_user_id` with the Memberships the subject holds in each, at most one
+group past the closure's bound; then, only for a person within
+[`ClosureLimits`](../../backend/src/LearnStack.SharedKernel/DataProtection/ClosureLimits.cs)
+(256 participant groups and 256 Memberships in one participant tenant), the key of
+every participant tenant and of the request's own tenant, ascending by key. A person
+past the bounds takes no tenant key, and Begin refuses them with nothing written. It
+takes no shared and no session-level key. A key not granted within three seconds fails
+its statement with `55P03`, which abandons the scope, and the act answers the retryable
+unavailable. It is not `IIdentityMutationLocks`, which fences one tenant inside a
+tenant-announced application transaction; `IdentityPlatformFenceConventionTests` pins
+it as the one platform acquirer and the order it takes the keys in.
+
+**Fences per transaction.** The acquirer has two forms. `AcquireAsync` takes every key,
+for a transaction that moves the User or a closure's request, which the checks below
+admit only under all of them. `AcquireUserAsync` takes the User key alone and reads the
+participants under it, for a transaction that moves neither. A closure's Begin runs
+one transaction with every key. Its Finalize runs two platform transactions around the
+identity provider's account deletion: the first, the redaction with its intent row,
+holds the User key alone, so no participant tenant's identity writes wait for the
+redaction while the User key keeps the participant set fixed; the second takes every
+key before the User moves to Closed. Each transaction's keys end at its commit, so none
+is held while the provider runs. `IdentityPlatformFenceConventionTests` pins the two
+calls, their forms and their order; the second transaction's changes are refused
+without its own keys.
+
+**Finalize's reads.** Each reads the person's own rows by the person's indexes:
+`AccountClosureOperatorOperations.ReadinessSql`, each participant group's newest erasure
+of the person with whether it completed at or after the person's earliest Begin (the
+first Begin moved the User to Closing, so a later closure's groups are the same ones)
+and whether its frozen Memberships include every Membership the person holds in the
+group, through `ix_data_subject_requests_subject_user_id` and `ix_memberships_user_id`;
+`MembershipsSql`, every Membership of the person by tenant for the tenant passes,
+through `ix_memberships_user_id`, bounded at what an admitted closure can hold
+(`ClosureLimits.MaximumMemberships`, 65,536); and `OpenClosuresSql`, the person's other
+open closures, locked, through `ix_data_subject_requests_subject_user_id` and bounded by
+the group bound. The erasures the second transaction completes are locked by primary
+key first, so one an erasure completion finished meanwhile is read as it committed and
+left as it is. `AccountClosureFinalizeTests` asks PostgreSQL for the plans of these and
+of the acquirer's grouped participant read over thousands of other people's rows in the
+same groups. A begun closure's Begin moment is its own `updated_at`: the Begin arrow
+stamps it from the database clock, and no arrow writes the row again until Finalize
+completes it, because the application role writes no closure but to cancel a scheduled
+one: a write that keeps it scheduled, a refusal code or a later stamp, is refused.
+
+**The last-administrator read.** A closure's Begin judges each participant tenant that
+allows ordinary work with `AccountClosureOperatorOperations.AdministratorStandingSql`:
+the administrator predicate of the deferred complete-graph guard, with
+`users.status = 'Active'`, which the application role's read cannot see, read under the
+fences. `AccountClosureAdministratorParityTests` proves it answers as the guard over
+Active, Suspended, Revoked and Closing administrators, an organization administrator, a
+tenant-wide learner and a Role missing a kernel grant. Its index path is the current
+`TenantAdmin` Role of each tenant (`ux_roles_current_builtin_scope`), its assignments
+(`ix_membership_role_assignments_tenant_id_role_id`), and the Memberships, grants and
+Users by their keys.
+
+### The platform grants
+
+`learnstack_platform` bypasses row security, so these column grants are its whole
+bound; none is table-wide:
+
+| Object | Granted to `learnstack_platform` |
+|---|---|
+| `users` | `SELECT` of `id`, `status`, `provider_subject` and `subject_key`; `UPDATE` of `status` and `provider_subject` |
+| `memberships` | `SELECT` of `id`, `tenant_id`, `organization_id`, `user_id`, `status` and `deleted_at` |
+| `membership_role_assignments` | `SELECT` of `tenant_id`, `membership_id` and `role_id` |
+| `roles` | `SELECT` of `id`, `tenant_id`, `built_in_key`, `permission_scope`, `deleted_at` and `deleted_by` |
+| `role_permission_grants` | `SELECT` of `tenant_id`, `role_id`, `permission_scope` and `permission_key` |
+| `data_subject_requests` | `SELECT` of `updated_at`, a begun closure's Begin moment; `UPDATE` of `last_refusal`, beside the four columns of the [platform arm](#data-request-operator-storage) |
+| `fn_identity_lock_held`, `fn_identity_contextual_lock_key` | `EXECUTE`; both read only the calling backend's own `pg_locks` rows |
+
+`provider_subject` is what Finalize removes from the identity provider, and
+`subject_key` is what its redaction selects the sentinel tenant's rows by
+([ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 4). The assignment,
+Role and grant columns are exactly those the administrator predicate of
+`fn_identity_complete_graph_guard` reads, so a participant tenant's last-administrator
+judgment runs on the platform connection, for any tenant, with no announcement. The
+predicate's `member.deleted_by IS NULL` is neither granted nor needed:
+`ck_memberships_lifecycle` makes both deletion columns NULL for every Active
+Membership. Nothing of `membership_profiles` or `identity_authority` is granted.
+
+### The `users` trigger exception
+
+`fn_identity_user_immutable` still backs `tg_users_no_update`, `tg_users_no_delete`
+and `tg_users_no_truncate`. A `DELETE`, a `TRUNCATE` and every `UPDATE` whose
+`session_user` and `current_user` are not both `learnstack_platform` stay refused
+(`Identity bindings have no admitted update or removal owner.`), the migration
+owner's included. The platform session's `UPDATE` passes only when all of these hold,
+each refused with its own `23514` message:
+
+- no column but `status` and `provider_subject` differs
+  (`User closure column refused.`);
+- the transition is Active to Closing with `provider_subject` unchanged, or Closing to
+  Closed with `provider_subject` NULL; Closing never returns to Active and Closed never
+  changes (`User closure transition refused.`);
+- the subject's User key is held exclusively (`User closure fence refused.`);
+- the subject holds a Membership (`User closure participant refused.`): a person with
+  no Membership files no closure, and Phase 11 owns theirs
+  ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md)
+  § 10);
+- every participant tenant's key is held exclusively
+  (`User closure tenant fence refused.`).
+
+The function then stamps `row_version` one higher, `updated_at` from the database
+clock, never earlier than the row's last stamp, and `updated_by` as
+`UserId.SystemActor`, so the column grant stays at the two columns. The `users` policy
+and the application role's grants are unchanged. Its body reads rows through existence
+tests only, as the function census of the first Identity migration requires.
+
+### The request guard's closure arrows
+
+The platform arm of `fn_identity_data_request_guard` carries four arrows beside the
+erasure completion of [Data-request operator storage](#data-request-operator-storage),
+under that arm's common rules: an `UPDATE` only, every column outside the arrow as the
+statement presents it, the version stepped by one, `last_refusal` changed on the
+refusal record alone, and the update stamps and, on a completion, `completed_at`
+written by the guard.
+
+| Arrow | Admitted only when | `result` |
+|---|---|---|
+| Closure `scheduled → scheduled`, the refusal record | the new `last_refusal` is `blocked_window`, `blocked_hold` or `blocked_last_administrator` and differs from the standing one; `completed_at` unchanged | unchanged |
+| Closure `scheduled → fulfilling`, Begin | `clock_timestamp()` is at or past `execute_at`; the subject is Closing; the User key, the request's tenant key and every participant tenant key are held exclusively; `completed_at` unchanged | unchanged |
+| Closure `fulfilling → completed` or `scheduled → completed`, Finalize | the subject is Closed; the fences of Begin | changes only in the four audit kinds and `unserved_group` |
+| Erasure of origin `closure_fanout`, `awaiting_privileged_step → completed` | the subject is Closing or Closed; the User key and the request's tenant key are held exclusively | changes only in the four audit kinds |
+
+A refusal record is set or replaced, never cleared: a Begin that succeeds later moves
+the request on, and recording the standing code again, which the aggregate treats as
+no change, is refused. The new refusals are `Data request refusal record refused.`,
+`Data request closure window refused.`, `Data request closure subject refused.`,
+`Data request closure user fence refused.` and
+`Data request closure tenant fence refused.`. Begin reads the subject Closing, so it
+follows the User's move in its transaction; Finalize reads it Closed, so it follows
+the move to Closed. Finalize's arrow takes a closure from `scheduled` too: a person may
+hold an open closure in each group, and once the subject is Closed none of them can be
+begun, so Finalize completes every one of them with the one it finalizes, under the
+same witnesses, and none stays open behind a closed account. Every other arrow, kind,
+origin and status stays refused. The
+application role's arrows include none of these four, and its `UPDATE` arm refuses
+every write of a closure's row but one that keeps it `scheduled` or cancels it
+(`Data request transition refused.`), so a closure the platform made `fulfilling` is
+written by these arrows alone; its own refusal record
+([ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) § 7)
+still admits a code on a scheduled request, a closure's included, and no
+application path writes one on a closure.
+
+### The User status witness
+
+The application's INSERT arm admits one request born `fulfilling`: a closure's fan-out
+erasure, of kind `erasure` and origin `closure_fanout`, with no `execute_at`, no
+requester and the system actor as `created_by`. Every other origin, a closure and an
+export are still born `scheduled` or `requested`, and a fan-out is born nothing else
+(`Data request initial state refused.`). After its existing tenant fence and exclusive
+User fence, and after its exact snapshot check, so a refused snapshot is answered
+before any status is asked, the arm then admits every request only
+for a subject in the one status its origin allows: Closing for a closure's fan-out,
+Active for every export, erasure and closure of the person or an administrator
+(`Data request subject is not admitted.`). The status is read under the User fence, so
+a filing admitted while the person was Active whose transaction reaches the fence only
+after a Begin or a Finalize committed inserts nothing: no closure stays `scheduled`
+behind a closed account, and no administrator files for a person whose account is
+closing. A Closed subject has no request of any origin.
+
+The application role cannot read another person's `users` row, so the arm asks
+`public.fn_identity_user_status(target uuid)`, which returns `text`: a `plpgsql`
+`VOLATILE` definer owned by the NOBYPASSRLS `learnstack_migration`, with a fixed
+`search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC` and `EXECUTE` to `learnstack_app`
+only. It reads `users` through the table's owner arm and returns the subject's status
+and nothing else, or NULL for no such User, outside a trigger, or unless the calling
+backend holds the subject's User key exclusively, so inside the guard it reads only the
+status of the subject the writing transaction fences. The confinement is the guard's,
+not the caller's: a session that takes the key, which any application session may, and
+fires a trigger of its own can read that one closed status, as
+`fn_identity_admin_admission_state` already reads an administrator's.
+
+### The delayed mirror's subject status
+
+A delayed delivery refuses a person whose User is no longer Active, as intake does
+([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7 and
+9). The tenant mirror of a provider fact reads its retained target on the application
+role, which cannot read the affected person's `users` row, so the Identity migration
+`20261123110000_refuse_closing_provider_event_delivery` adds
+`public.fn_identity_provider_event_subject_status(target uuid)`, which returns `text`: a
+`plpgsql` `VOLATILE STRICT` definer owned by the NOBYPASSRLS `learnstack_migration`,
+with a fixed `search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC` and `EXECUTE` to
+`learnstack_app` only. It answers for one target only: one of the tenant the transaction
+announced (`app.tenant_id`), already enqueued, whose affected person it names. It then
+takes that person's User key shared, transaction-scoped, as intake's
+`fn_identity_provider_event_accept` does, and returns the person's status and nothing
+else, or NULL for any other target. The shared key orders the read against a closure's
+Begin and Finalize, which hold the key exclusively: a delivery that read Active commits
+before the User leaves Active, so its row is one Finalize's redaction selects, and a
+delivery that waited reads the status they committed. It is the only key the delivery
+takes, so it orders no cycle; the delivery's five-second command budget bounds the wait.
+The fact reader selects it with the target in one statement through the target's primary
+key and the `users` primary key; the Audit subscriber withholds the observation of a
+person it does not report Active, so the delivery completes with its inbox row and no
+audit row.
+
+
+### Proof
+
+Real PostgreSQL as each role, in `AccountClosureStorageTests`, each case on its own
+disposable copy of the seeded schema:
+
+- the trigger exception admitted with the User key and every participant tenant key,
+  a Revoked tombstone's tenant included, and the stamps it writes; refused with each
+  key removed alone or held shared, for every other transition, for a third column
+  under a widened grant, for the application role and the migration owner holding
+  every fence, for a superuser session switched to the platform role, for `DELETE` and
+  `TRUNCATE` under widened grants, and for a subject with no Membership;
+- Begin, the refusal record, Finalize from `fulfilling` and from `scheduled`, and the
+  fan-out completion admitted with their exact witnesses and refused with each removed
+  alone: a missing or shared fence, a
+  subject in the wrong state, a closure still in its window, a result changing a kind
+  outside its arrow, a column outside the grant, a missing version step, a refusal
+  record cleared or repeated, and `INSERT` and `DELETE` under a widened grant; the
+  application role refused every closure arrow;
+- the fan-out born `fulfilling` for a Closing subject in a tenant-wide and an
+  organization group, and refused for an Active and a Closed one, without either
+  fence, outside its closed values, and for every other origin and status; every kind
+  and origin the CHECKs admit filed for an Active subject and refused for a Closing
+  and a Closed one, the fan-out the other way round for Active and Closing; a filing
+  that waited on the User fence behind a committing Begin refused; the witness
+  function's answers inside and outside a trigger, and its ACL;
+- the platform grants read from the attribute ACLs, the participant read and its index,
+  and the last-administrator predicate answering on the platform connection as on the
+  announced application connection.
+- the delayed mirror's refusal through an actual replay, in
+  `DataErasureReplayFloorTests`: a delivery dead-lettered while the person was Active
+  and replayed after the User became Closing, and again Closed, runs the handler, which
+  writes no audit row, fails nothing and advances the replay count once, and the subject
+  status definer is in the definer census; and again after the person's real Begin,
+  fan-out, erasure jobs and Finalize;
+- Finalize itself, in `AccountClosureFinalizeTests` and `AccountClosureEndToEndTests`:
+  the User moved to Closed with the raw subject removed only under the second
+  transaction's own keys, every participant erasure and every open closure completed,
+  and the readiness, the plans and the races above; and `DataRequestStorageLiteralTests`
+  pins that the Finalize migration's guard is the earlier guard but for the one arrow
+  condition.
+
+`DataRequestStorageLiteralTests` pins the guard's application arms to the request
+storage migration's text but for the INSERT arm's one block, and the definer and
+function censuses are in `GlobalIdentitySchemaTests`.

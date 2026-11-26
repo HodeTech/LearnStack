@@ -95,7 +95,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Reinstall the complete current chains, including forward-only retained-evidence heads.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(66L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(70L,
+            "the current chains add the four P03-10 data-request tables to the sixty-six before them");
         (await CountAsync(connection, "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r' AND relname IN ('tenant_custom_field_defs','membership_field_consents')"))
             .Should().Be(2, "both current custom-field tables were restored");
         await SchemaTableClasses.AssertCompleteAsync(connection);
@@ -103,8 +104,10 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(25L,
-            "current Identity also installs three provider definers, one target transition guard, the federation connection guard, the operator subject resolver and the authority key guard");
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(34L,
+            "current Identity also installs three provider definers, one target transition guard, the federation connection guard, the operator subject resolver, the authority key guard, "
+            + "the four data-request guards with their chunk and completed-export completeness checks, the retained own data-request scope definer, "
+            + "the request guard's User status witness and the delayed provider mirror's subject status");
         await _fixture.AssertCurrentHeadsRefuseReversalAsync();
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
@@ -219,16 +222,38 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         operatorResolver.Should().Throw<NotSupportedException>().WithMessage("Operator subject resolution requires a reviewed forward migration.");
         Action authorityRebind = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_identity_authority_rebind().DownOperations;
         authorityRebind.Should().Throw<NotSupportedException>().WithMessage("The issuer-rebind storage requires a reviewed forward migration.");
+        Action federationProjection = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.grant_platform_federation_projection().DownOperations;
+        federationProjection.Should().Throw<NotSupportedException>().WithMessage("The platform federation projection grant requires a reviewed forward migration.");
+        Action dataRequests = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_data_subject_requests().DownOperations;
+        dataRequests.Should().Throw<NotSupportedException>().WithMessage("Data request storage requires a reviewed forward migration.");
         Action protectedReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_custom_field_protected_receipts().DownOperations;
         protectedReceipts.Should().Throw<NotSupportedException>().WithMessage("Retained custom field receipts require a reviewed forward migration.");
+        Action deliveryInspection = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.grant_platform_delivery_inspection().DownOperations;
+        deliveryInspection.Should().Throw<NotSupportedException>().WithMessage("The platform role's column grants require a reviewed forward migration.");
+        Action dataRequestReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_data_request_protected_receipts().DownOperations;
+        dataRequestReceipts.Should().Throw<NotSupportedException>().WithMessage("Retained data request receipts require a reviewed forward migration.");
+        Action ownDataRequestScopes = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_own_data_request_scopes().DownOperations;
+        ownDataRequestScopes.Should().Throw<NotSupportedException>().WithMessage("The retained own data-request scope requires a reviewed forward migration.");
+        Action platformDataRequests = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.grant_platform_data_request_operations().DownOperations;
+        platformDataRequests.Should().Throw<NotSupportedException>().WithMessage("The platform data-request operations require a reviewed forward migration.");
+        Action erasureClearing = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.admit_erasure_profile_clearing().DownOperations;
+        erasureClearing.Should().Throw<NotSupportedException>().WithMessage("The erasure profile clearing requires a reviewed forward migration.");
+        Action accountClosure = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.admit_account_closure().DownOperations;
+        accountClosure.Should().Throw<NotSupportedException>().WithMessage("The account closure storage requires a reviewed forward migration.");
+        Action providerSubjectStatus = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.refuse_closing_provider_event_delivery().DownOperations;
+        providerSubjectStatus.Should().Throw<NotSupportedException>().WithMessage("The provider event subject status requires a reviewed forward migration.");
+        Action closureFinalize = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.admit_closure_finalize().DownOperations;
+        closureFinalize.Should().Throw<NotSupportedException>().WithMessage("The closure finalize storage requires a reviewed forward migration.");
+        Action guardHardening = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.harden_closure_request_guard().DownOperations;
+        guardHardening.Should().Throw<NotSupportedException>().WithMessage("The closure request guard hardening requires a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
-            (platform, "20261110013140_add_custom_field_protected_receipts", PlatformReversibleHead,
-                "20261120120000_grant_platform_delivery_inspection", "The platform role's column grants require a reviewed forward migration."),
-            (identity, "20261120090000_add_identity_authority_rebind", IdentityReversibleHead,
-                "20261120160000_grant_platform_federation_projection", "The platform federation projection grant requires a reviewed forward migration."),
+            (platform, "20261120120000_grant_platform_delivery_inspection", PlatformReversibleHead,
+                "20261122160000_add_data_request_protected_receipts", "Retained data request receipts require a reviewed forward migration."),
+            (identity, "20261123120000_admit_closure_finalize", IdentityReversibleHead,
+                "20261123130000_harden_closure_request_guard", "The closure request guard hardening requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

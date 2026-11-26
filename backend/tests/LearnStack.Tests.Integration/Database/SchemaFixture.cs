@@ -169,6 +169,13 @@ public sealed class SchemaFixture : IAsyncLifetime
             RowsVisibleToTenantA[table] = SchemaTableClasses.SelectDenied;
             RowsVisibleToTenantB[table] = SchemaTableClasses.SelectDenied;
         }
+        // DataRequestSchemaSeed: each tenant's tenant-wide completed export, its artifact, ticket and chunk.
+        // Tenant A's two organization exports and tenant B's organization request need app.organization_id.
+        foreach (var table in SchemaTableClasses.IdentityDataRequest)
+        {
+            RowsVisibleToTenantA[table] = 1;
+            RowsVisibleToTenantB[table] = 1;
+        }
         foreach (var table in SchemaTableClasses.JobTenant)
         {
             RowsVisibleToTenantA[table] = table == "background_job_reservations" ? 3 : 1;

@@ -51,7 +51,8 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </remarks>
 public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationReadScopeView,
     IPreContextSelfDiscoveryUnitOfWork, IFixedSeedPrerequisiteUnitOfWork, IUnitOfWorkWriteGuard,
-    IUnitOfWorkContextEnrollment, IInvitationEntryUnitOfWork, IConsentSubjectUnitOfWork, IConfidentialCommitUnitOfWork
+    IUnitOfWorkContextEnrollment, IInvitationEntryUnitOfWork, IConsentSubjectUnitOfWork, IOwnDataRequestUnitOfWork,
+    IConfidentialCommitUnitOfWork
 {
     private readonly NpgsqlDataSource _dataSource;
 
@@ -170,7 +171,8 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         ObjectDisposedException.ThrowIf(_disposed || _idempotencyEnding, this);
         RequireWriteAllowed();
 
-        if (_selfDiscoveryWitness is not null || _invitationWitness is not null || _consentWitness is not null)
+        if (_selfDiscoveryWitness is not null || _invitationWitness is not null || _consentWitness is not null
+            || _dataRequestWitness is not null)
         {
             MarkRollbackOnly();
             throw new InvalidOperationException("A transaction cannot join a captured entry owner.");
@@ -434,7 +436,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
 
     private async Task SetTenantContextCoreAsync(ITenantContext context, OperationReadWitness? readWitness,
         bool tenantWideRead, CancellationToken cancellationToken, InvitationEntryScopeWitness? invitationWitness = null,
-        ConsentSubjectScopeWitness? consentWitness = null)
+        ConsentSubjectScopeWitness? consentWitness = null, OwnDataRequestScopeWitness? dataRequestWitness = null)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -449,6 +451,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         if (context.Origin == TenantContextOrigin.ProviderEventRecipient
             && (context is not ProviderEventRecipient recipient || _depth != 1 || _tenantContextIssued
                 || _transaction is null || tenantWideRead || invitationWitness is not null || consentWitness is not null
+                || dataRequestWitness is not null
                 || !recipient.TryBind(this, _transaction, _generation)))
         {
             MarkRollbackOnly();
@@ -469,6 +472,15 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         {
             MarkRollbackOnly();
             throw new InvalidOperationException("Consent context requires its exact unused subject witness.");
+        }
+        if (_dataRequestWitness is not null
+            || (context.Origin == TenantContextOrigin.HostAndOwnDataRequestScope) != (dataRequestWitness is not null)
+            || dataRequestWitness is not null && (invitationWitness is not null || consentWitness is not null || _depth != 1
+                || _tenantContextIssued || tenantWideRead || !dataRequestWitness.IsActive
+                || !ReferenceEquals(dataRequestWitness.Invocation.Context, context)))
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("Own data request context requires its exact unused subject witness.");
         }
         if (IsGlobalIdentityTransaction || _selfDiscoveryWitness is not null)
         {
@@ -567,6 +579,9 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         if (consentWitness is not null && (!consentWitness.TryBindTo(this, _transaction, _generation, _mode!.Value)
             || consentWitness.TenantId != tenantId || consentWitness.OrganizationId != organizationId
             || !consentWitness.IsBoundTo(this, _transaction, _generation))) RefuseOperationReadScope();
+        if (dataRequestWitness is not null && (!dataRequestWitness.TryBindTo(this, _transaction, _generation, _mode!.Value)
+            || dataRequestWitness.TenantId != tenantId || dataRequestWitness.OrganizationId != organizationId
+            || !dataRequestWitness.IsBoundTo(this, _transaction, _generation))) RefuseOperationReadScope();
         if (invitationWitness is not null && (!invitationWitness.TryBindTo(this, _transaction, _generation, _mode!.Value)
             || invitationWitness.Offer.TenantId != tenantId || invitationWitness.Offer.OrganizationId != organizationId))
             RefuseOperationReadScope();
@@ -623,6 +638,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
             if (!consentWitness.IsBoundTo(this, _transaction, _generation)) RefuseOperationReadScope();
             _consentWitness = consentWitness;
         }
+        if (dataRequestWitness is not null)
+        {
+            if (!dataRequestWitness.IsBoundTo(this, _transaction, _generation)) RefuseOperationReadScope();
+            _dataRequestWitness = dataRequestWitness;
+        }
         _tenantContextIssued = true;
         _tenantContextAnnouncement = tenantId is { } announcedTenant
             ? new TenantContextAnnouncement(_generation, announcedTenant, organizationId)
@@ -649,7 +669,8 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         ObjectDisposedException.ThrowIf(_disposed, this);
         RequireWriteAllowed();
 
-        if (_tenantWideRead || _readScopeFaulted || _invitationWitness is not null || _consentWitness is not null || _selfDiscoveryWitness is not null) RefuseOperationReadScope();
+        if (_tenantWideRead || _readScopeFaulted || _invitationWitness is not null || _consentWitness is not null
+            || _dataRequestWitness is not null || _selfDiscoveryWitness is not null) RefuseOperationReadScope();
 
         if (IsGlobalIdentityTransaction)
         {
@@ -759,6 +780,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         {
             _rollbackOnly = true; _tenantContextIssued = false; _tenantContextAnnouncement = null; return false;
         }
+        if (_dataRequestWitness is { } dataRequest && (_transaction is null || _depth != 1 || _mode != dataRequest.Mode
+            || !dataRequest.IsBoundTo(this, _transaction, _generation)))
+        {
+            _rollbackOnly = true; _tenantContextIssued = false; _tenantContextAnnouncement = null; return false;
+        }
         if (_selfDiscoveryWitness is { } own && !own.IsBoundTo(this))
         {
             _rollbackOnly = true;
@@ -820,6 +846,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         _selfDiscoveryWitness = null;
         _invitationWitness = null;
         _consentWitness = null;
+        _dataRequestWitness = null;
         _providerRecipient = null;
         _providerCancellation.Dispose();
         _providerCancellation = default;

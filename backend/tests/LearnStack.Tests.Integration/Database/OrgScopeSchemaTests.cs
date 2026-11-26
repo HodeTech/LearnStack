@@ -116,7 +116,8 @@ public sealed partial class OrgScopeSchemaTests
         scoped.Should().Contain(["tenant_settings", "audit_log",
             "courses", "lessons", "course_translations", "lesson_translations",
             "background_jobs", "background_job_attempts", "background_job_recipients",
-            "invitations", "membership_field_consents", "invitation_email_envelopes", "invitation_email_attempt_receipts"],
+            "invitations", "membership_field_consents", "invitation_email_envelopes", "invitation_email_attempt_receipts",
+            "data_subject_requests", "data_export_artifacts", "data_export_tickets", "data_export_chunks"],
             "a guard over no classified tables proves nothing");
         all.Except(scoped).Should().BeEquivalentTo(["platform_host_to_tenant", "outbox_messages"],
             "these are the two documented table-class exceptions, not an extensible exclusion list");
@@ -191,6 +192,10 @@ public sealed partial class OrgScopeSchemaTests
     [InlineData("membership_field_consents", "tg_membership_field_consents_organization_id_immutable")]
     [InlineData("invitation_email_envelopes", "tg_invitation_email_envelopes_guard")]
     [InlineData("invitation_email_attempt_receipts", "tg_invitation_email_attempt_receipts_guard")]
+    [InlineData("data_subject_requests", "tg_data_subject_requests_organization_id_immutable")]
+    [InlineData("data_export_artifacts", "tg_data_export_artifacts_organization_id_immutable")]
+    [InlineData("data_export_tickets", "tg_data_export_tickets_organization_id_immutable")]
+    [InlineData("data_export_chunks", "tg_data_export_chunks_organization_id_immutable")]
     public async Task The_Organization_Guard_Rejects_A_Missing_Guard_On_Each_Existing_Table(
         string table, string trigger)
     {

@@ -91,8 +91,10 @@ internal sealed class TenantAuthenticationEvents(
     {
         context.HttpContext.Features.Set<ValidatedInvitationCredential>(null);
         context.HttpContext.Features.Set<ValidatedConsentSubjectCredential>(null);
+        context.HttpContext.Features.Set<ValidatedOwnDataRequestCredential>(null);
         ValidatedInvitationCredential.ClearPending(context.HttpContext);
         ValidatedConsentSubjectCredential.ClearPending(context.HttpContext);
+        ValidatedOwnDataRequestCredential.ClearPending(context.HttpContext);
         if (!HostClassificationMiddleware.ClassifiesPath(context.Request.Path)
             || context.HttpContext.Features.Get<HostClassification>() is null)
         {
@@ -118,6 +120,7 @@ internal sealed class TenantAuthenticationEvents(
             context.Token = token;
             ValidatedInvitationCredential.BeginValidation(context.HttpContext, token);
             ValidatedConsentSubjectCredential.BeginValidation(context.HttpContext, token);
+            ValidatedOwnDataRequestCredential.BeginValidation(context.HttpContext, token);
         }
 
         return Task.CompletedTask;
@@ -127,6 +130,7 @@ internal sealed class TenantAuthenticationEvents(
     {
         context.HttpContext.Features.Set<ValidatedInvitationCredential>(null);
         context.HttpContext.Features.Set<ValidatedConsentSubjectCredential>(null);
+        context.HttpContext.Features.Set<ValidatedOwnDataRequestCredential>(null);
         var feature = context.HttpContext.Features.Get<TenantCredentialFeature>();
         if (feature is null || context.SecurityToken is not JsonWebToken token
             || !TenantTokenProfile.TryReadValidated(
@@ -134,6 +138,7 @@ internal sealed class TenantAuthenticationEvents(
         {
             ValidatedInvitationCredential.ClearPending(context.HttpContext);
             ValidatedConsentSubjectCredential.ClearPending(context.HttpContext);
+            ValidatedOwnDataRequestCredential.ClearPending(context.HttpContext);
             TenantAuthenticationDiagnostics.Outcome(logger, TenantAuthenticationOutcome.ProfileRejected);
             context.Fail("Tenant credential refused.");
         }
@@ -142,6 +147,7 @@ internal sealed class TenantAuthenticationEvents(
             feature.VerifiedSubject = identity;
             context.HttpContext.Features.Set(ValidatedInvitationCredential.Capture(context.HttpContext, token, identity!));
             context.HttpContext.Features.Set(ValidatedConsentSubjectCredential.Capture(context.HttpContext, token, identity!));
+            context.HttpContext.Features.Set(ValidatedOwnDataRequestCredential.Capture(context.HttpContext, token, identity!));
             TenantAuthenticationDiagnostics.Outcome(logger, TenantAuthenticationOutcome.ValidationAccepted);
         }
 
@@ -152,8 +158,10 @@ internal sealed class TenantAuthenticationEvents(
     {
         context.HttpContext.Features.Set<ValidatedInvitationCredential>(null);
         context.HttpContext.Features.Set<ValidatedConsentSubjectCredential>(null);
+        context.HttpContext.Features.Set<ValidatedOwnDataRequestCredential>(null);
         ValidatedInvitationCredential.ClearPending(context.HttpContext);
         ValidatedConsentSubjectCredential.ClearPending(context.HttpContext);
+        ValidatedOwnDataRequestCredential.ClearPending(context.HttpContext);
         if (context.HttpContext.Features.Get<TenantCredentialFeature>() is { } feature)
         {
             feature.Identity = null;

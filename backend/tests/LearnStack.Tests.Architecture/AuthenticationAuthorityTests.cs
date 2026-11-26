@@ -31,6 +31,10 @@ public sealed partial class AuthenticationAuthorityTests
     private const string InvitationSource = Authentication + "InvitationEntrySource";
     private const string ConsentCredential = Authentication + "ValidatedConsentSubjectCredential";
     private const string ConsentSource = Authentication + "ConsentSubjectSource";
+    private const string DataRequestCredential = Authentication + "ValidatedOwnDataRequestCredential";
+    private const string DataRequestSource = Authentication + "OwnDataRequestSubjectSource";
+    /// <summary>ADR-0107 § 4: the one download-ticket session binding; it reads the validated projection to bind a ticket.</summary>
+    private const string ExportBinding = Authentication + "HttpDataExportSessionBinding";
     private const string RecipientReader = Authentication + "CurrentInvitationRecipientReader";
     private const string SelfAdmission = Authentication + "HttpIdentitySelfEntryAdmission";
     /// <summary>ADR-0099 Amendment 6 (S-B): the one reader of the test-record scope flag.</summary>
@@ -89,7 +93,7 @@ public sealed partial class AuthenticationAuthorityTests
         foreach (var call in calls.Where(call => (rawReader ?? IsRawAuthorityRead)(call.Target)
                      && !(call.Source.Site == ExpectedSite(Events + ".TokenValidated")
                          && call.Target.FullName == "System.String Microsoft.IdentityModel.JsonWebTokens.JsonWebToken::get_EncodedToken()")
-                     && !IsClosedRolesAbsenceCheck(call) && !IsOperatorTokenProfileRead(call) && !IsClosedInvitationTokenRead(call, calls, methods) && !IsClosedConsentTokenRead(call, calls)))
+                     && !IsClosedRolesAbsenceCheck(call) && !IsOperatorTokenProfileRead(call) && !IsClosedInvitationTokenRead(call, calls, methods) && !IsClosedConsentTokenRead(call, calls) && !IsClosedDataRequestTokenRead(call, calls)))
             errors.Add("Raw claim/role authority: " + call.Source.Site + " -> " + call.Target.FullName);
         // Object virtual dispatch and generic formatting can export a positional
         // record without an identity-declared call. Close acquisition, holders
@@ -134,12 +138,16 @@ public sealed partial class AuthenticationAuthorityTests
 
         // Issuer/sub may select a private accounting partition, never permission.
         // Scope/actor consumption remains explicit even inside the API assembly.
-        Consumers("Issuer", CandidateSource + ".MatchesIdentity", Native + ".TryMint", RecipientReader + ".Matches", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync");
-        Consumers("Subject", CandidateSource + ".MatchesIdentity", Native + ".TryMint", RecipientReader + ".Matches", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync");
+        Consumers("Issuer", CandidateSource + ".MatchesIdentity", Native + ".TryMint", RecipientReader + ".Matches", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync",
+            DataRequestSource + ".PrepareAsync");
+        Consumers("Subject", CandidateSource + ".MatchesIdentity", Native + ".TryMint", RecipientReader + ".Matches", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync",
+            DataRequestSource + ".PrepareAsync");
         VerifiedConsumers("Issuer", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync",
-            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture", RecipientReader + ".Matches");
+            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture", RecipientReader + ".Matches",
+            ExportBinding + ".Capture", ExportBinding + ".CaptureRetained");
         VerifiedConsumers("Subject", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync",
-            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture", RecipientReader + ".Matches", RecipientReader + ".ReadAsync");
+            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture", RecipientReader + ".Matches", RecipientReader + ".ReadAsync",
+            ExportBinding + ".Capture", ExportBinding + ".CaptureRetained");
         VerifiedConsumers("ClaimedActor", BindingResolver + ".ResolveExistingAsync", CandidateSource + ".MatchesIdentity",
             Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject");
         VerifiedConsumers("TenantId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity",
@@ -151,12 +159,14 @@ public sealed partial class AuthenticationAuthorityTests
             "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
             TransportSource + ".Capture", Native + ".TryMint", Native + ".get_Actor", RecipientReader + ".Matches", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync",
-            ConsentSource + ".ForInvocation", ConsentSource + ".get_Actor");
+            ConsentSource + ".ForInvocation", ConsentSource + ".get_Actor", DataRequestSource + ".PrepareAsync", DataRequestSource + ".ForInvocation",
+            DataRequestSource + ".get_Actor", DataRequestSource + ".DownloadCredential", ExportBinding + ".Capture", ExportBinding + ".CaptureRetained");
         Consumers("TenantId", Resolver + ".BuildAttemptAsync", Resolver + ".InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
-            TransportSource + ".MatchesScope", Native + ".TryMint", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync");
+            TransportSource + ".MatchesScope", Native + ".TryMint", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync", DataRequestSource + ".PrepareAsync");
         Consumers("OrganizationId", Resolver + ".BuildAttemptAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority",
-            CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity", Native + ".TryMint", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync");
+            CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity", Native + ".TryMint", InvitationSource + ".PrepareAsync", ConsentSource + ".PrepareAsync",
+            DataRequestSource + ".PrepareAsync");
 
         foreach (var method in methods)
             foreach (var instruction in method.Definition.Body.Instructions)

@@ -92,7 +92,7 @@ nonempty foundation registry.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
-| **Platform** | `platform.killswitch.write`, `platform.tenant.write`, `platform.tenant_bootstrap.write`, `platform.identity_authority.admin`, `platform.delivery.read`, `platform.delivery.write`, `platform.federation.read` and `platform.federation.admin` (registered); the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue joins with the step that ships the operation using it, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
+| **Platform** | `platform.killswitch.write`, `platform.tenant.write`, `platform.tenant_bootstrap.write`, `platform.identity_authority.admin`, `platform.delivery.read`, `platform.delivery.write`, `platform.federation.read`, `platform.federation.admin`, `platform.data_request.read` and `platform.data_request.write` (registered); the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue joins with the step that ships the operation using it, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Organization-capability templates assigned to an eligible Membership for the resource's exact organization; Tenant grants are separately evaluated. |
 
@@ -111,6 +111,8 @@ not change when it grows ([ADR-0101](../decisions/0101-platform-operator-authori
 | `platform.delivery.write` | `platform.delivery.replay`, `platform.delivery.reset` (the two fenced transitions, on the dispatcher's outbox role) | P03-9 Step 4 |
 | `platform.federation.read` | `platform.federation.report` (the report of orphaned, unreadable and nonconforming identity-provider brokers, in the platform scope) | P03-9 Step 5 |
 | `platform.federation.admin` | `platform.federation.remove`, `platform.federation.disable` (the two provider changes, each with an intent and a completion row) | P03-9 Step 5 |
+| `platform.data_request.read` | `platform.data_request.inspect` (the metadata-only inspection of data requests awaiting an operator step, overdue, stuck, and of unpurged expired export artifacts, in the platform scope) | P03-10 Step 2 |
+| `platform.data_request.write` | `audit.redaction.apply` (the completion of an erasure's privileged step: the audit redaction, the request's completion and the result row in one platform transaction, [ADR-0108](../decisions/0108-privileged-audit-redaction.md)); `platform.closure.begin` and `platform.closure.finalize` (a global account closure's Begin, and its Finalize, whose intent row `platform.closure.finalize_attempt` commits with the audit redaction before the provider account is removed, [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7); `identity.data_request.fan_out_closure` (a closure's per-group pipeline act, one admission per participant group, the one operator act announced for a group's organization, [ADR-0102](../decisions/0102-production-tenant-onboarding.md) Amendment 2) | P03-10 Steps 2 and 3 |
 
 The five onboarding acts of
 [ADR-0102](../decisions/0102-production-tenant-onboarding.md) run under the
@@ -658,6 +660,19 @@ subject evidence, without current Active Membership or administrative grant.
 OwnMembershipRead remains read-only; these two exact commands confer no general
 own-mutation authority. Same-key receipts reauthorize the original actor/target;
 stale different-key predecessor conflicts and never silently retries.
+
+A subject's own data requests use two key-less policy kinds
+([ADR-0106 § 4](../decisions/0106-subject-data-requests-authority-and-status.md)).
+`OwnDataRequest` requires the actor's own Active Membership in exactly the announced
+group (a tenant-wide Membership does not cover an organization's group, nor the
+reverse), through a live session, and consults no grant or Role. `OwnDataRequestEntry`
+is the retained own scope: it is admitted only by the subject's own scope witness under
+the `HostAndOwnDataRequestScope` origin
+([Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope)),
+so it also serves a Suspended person and a person whose Membership is gone, and it
+supplies no Membership authority. Administrator requests are `Protected` with the
+existing `[identity.membership.admin at Tenant, at Organization]` alternatives. No
+assignable key is added and the grant union is unchanged.
 
 `canManageCustomFields` is the tenth advisory administration capability: current
 Tenant definition-admin authority in applicable orgless write context. Identity's

@@ -329,7 +329,9 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   the realm must issue it; builds the database adapter for operator grants on its
   trigger, audited runtime grant changes; pins the operator OpenAPI document under a
   gate of its own; decides durable denial evidence if security monitoring requires it;
-  alerts on the operator counters; and owns the read-only dashboard decision, job
+  alerts on the operator counters and on a backlog gauge of data requests awaiting their
+  privileged step (the 30-day target of ADR-0106 § 12 has no automated detector until
+  then); and owns the read-only dashboard decision, job
   reconciliation and recurrence recovery that
   [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) leaves absent.
 - Secret management: Vault rotation cadence (90 days for provider keys, yearly for
@@ -705,6 +707,21 @@ new erasure permission.
   Retention must preserve deduplication throughout the maximum redelivery window;
   erasure cannot release unresolved reservations or prove external quiescence.
 - Recording retention and purge jobs.
+- The hand-offs of Phase 03's subject data requests
+  ([ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md),
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 6, 7
+  and 10): the data of an `unserved_group` (a participant group whose tenant or
+  organization did not allow ordinary work when a global closure finished) and
+  whole-tenant offboarding; closure of a person with no Membership, of a person past the
+  closure's bounds (more than 256 participant groups or 256 Memberships in one tenant)
+  and of a person whose provider identifier the account-removal client refuses; the
+  retained classes no subject-keyed count reaches (transport and execution evidence, the
+  idempotency cache, external copies and the invitation e-mail envelopes); the purge of
+  expired export artifacts; the backlog gauge and alert rules for an erasure that waits
+  more than 30 days for its operator step; production provisioning of the
+  `learnstack-account-removal` realm client and retention of the identity provider's
+  admin events. Phase 03 ships the writers and their runbooks; this phase owns the
+  production operation and the first request that triggers each item.
 - `audit_log` retention and partition lifecycle — see **Demand-gated building blocks**
   above; the jobs and their cadence are specified by
   [ADR-0028](../decisions/0028-audit-log-partition-management.md). Per-tenant retention

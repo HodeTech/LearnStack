@@ -1,4 +1,7 @@
-import type { NativeConsentResponseLease } from './consent-response-contract.js';
+import type {
+  NativeConsentResponseLease,
+  NativeDataRequestResponseLease,
+} from './consent-response-contract.js';
 import type {
   InvitationCommand,
   InvitationContinuation,
@@ -15,7 +18,10 @@ import type { NativeInvitationApi } from './native-invitation-contract.js';
 import type {
   NativeAdministrationCaller,
   NativeRetainedConsentCaller,
+  NativeRetainedDataRequestCaller,
+  OwnDataRequestOperation,
   RetainedConsentOperation,
+  RetainedDataRequestOperation,
   NativeOperation,
   NativeOperationResult,
 } from './native-operation-contract.js';
@@ -100,6 +106,8 @@ export type NativeReturnPath =
   | `/studio/invitations/${string}`
   | '/studio/invitation-policy'
   | '/studio/federation'
+  | '/studio/data-requests'
+  | `/studio/data-requests/${string}`
   | '/studio/custom-fields'
   | `/studio/custom-fields/${string}`
   | '/studio/roles'
@@ -192,6 +200,17 @@ export class BffSessionError extends Error {
   }
 }
 
+/**
+ * The pinned owner's proof, for a live session whether its group is tenant-wide, for the retained entry the wall
+ * clock instant (epoch milliseconds) at which the entry ends, and in both modes how long the pinned response may
+ * live (the owner's remaining lifetime, exactly the bound the pin enforces); never an identifier.
+ */
+export type DataRequestRetention = Readonly<{
+  csrfToken: string;
+  scope: 'tenant' | 'organization' | null;
+  expiresAt: number | null;
+  remainingMs: number;
+}>;
 export type SessionDependencies = Readonly<{
   provider: SessionProvider;
   account: (
@@ -203,6 +222,8 @@ export type SessionDependencies = Readonly<{
   administration: NativeAdministrationCaller;
   invitations?: NativeInvitationApi;
   retainedConsent?: NativeRetainedConsentCaller;
+  /** ADR-0106 § 9: the retained data-request entry's own caller; absent means that entry is unavailable. */
+  retainedDataRequest?: NativeRetainedDataRequestCaller;
   /** ADR-0099: the server-side sign-in option read and the BFF-only test owner; absent means federation is off. */
   publicSignIn?: (
     binding: NativeBinding,
@@ -329,6 +350,25 @@ export interface BffSessionStore {
     binding: SessionBinding,
     source: string,
     operation: RetainedConsentOperation,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<NativeOperationResult>;
+  retainDataRequests(
+    binding: SessionBinding,
+    lease: NativeDataRequestResponseLease,
+    mode: 'session' | 'entry',
+  ): DataRequestRetention;
+  ownDataRequest(
+    binding: SessionBinding,
+    source: string,
+    operation: OwnDataRequestOperation,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<NativeOperationResult>;
+  retainedDataRequest(
+    binding: SessionBinding,
+    source: string,
+    operation: RetainedDataRequestOperation,
     csrf: string,
     signal?: AbortSignal,
   ): Promise<NativeOperationResult>;

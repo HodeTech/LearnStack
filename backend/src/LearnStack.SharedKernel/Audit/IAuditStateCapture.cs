@@ -93,6 +93,20 @@ public interface IAuditStateCapture
         throw new InvalidOperationException("This capture has no provider evidence attachment owner.");
 
     /// <summary>
+    /// Withdraws the innermost frame's one unclaimed provider observation intent, declared for the delivery
+    /// <paramref name="evidence"/> names, before anything is written: the mirror's subscriber refuses a person whose User
+    /// is no longer Active (ADR-0107 §§ 7, 9), and an observation it refuses has no row, because its row would carry
+    /// that person's identifier into the tenant's log after the closure began.
+    /// </summary>
+    /// <remarks>
+    /// Only the validated mirror subscriber calls it, with the evidence it alone mints, and only while the intent is still
+    /// pending; the delivery's inbox row then records that the delivery ran. Every other intent, and every other
+    /// operation's, is untouched.
+    /// </remarks>
+    void WithholdProviderEvent(ProviderEventAuditEvidence evidence) =>
+        throw new InvalidOperationException("This capture has no provider evidence attachment owner.");
+
+    /// <summary>
     /// The rows are on the ambient transaction. <b>Not</b> durable — the transaction has
     /// not committed. <c>IAuditStore.WritePendingAsync</c>.
     /// </summary>

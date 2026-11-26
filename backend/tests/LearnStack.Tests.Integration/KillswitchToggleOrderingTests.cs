@@ -1,6 +1,7 @@
 using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Modules.Tenancy.Infrastructure;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Platform;
@@ -165,6 +166,10 @@ public sealed class KillswitchToggleOrderingTests
             Steps.Add("intent");
             return Task.CompletedTask;
         }
+
+        public Task<AuditRedactionReport> RedactAuditAsync(
+            AuditRedactionPlan plan, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("A killswitch toggle never redacts the audit log.");
 
         public Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default)
         {

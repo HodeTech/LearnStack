@@ -298,6 +298,10 @@ the ticket is recorded on the sentinel-tenant audit rows, where § 9 puts it. Th
 stays for a future non-ticket explanation; nothing writes it. The Decision, Status, Date
 and every other section are unchanged.
 
+### Amendment 2 — Data request keys and operations (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) add two non-assignable Platform keys to the closed set of § 5: `platform.data_request.read` (inspect requests awaiting an operator step) and `platform.data_request.write` (complete an erasure's privileged step, begin and finalize a global account closure, and the per-group fan-out act). The operations are closed registry entries of § 7 with audit slugs outside the `identity` module, as the operator result write requires, and the human-operator population of § 1 is unchanged: no service or machine operator acts for them. The Decision, Status, Date and every other section of this record are unchanged.
+
 ## References
 
 - [ADR-0102](0102-production-tenant-onboarding.md),

@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { dataRequestRefusalSentence } from '@/components/auth/admin-data-request-labels';
 import {
   languageLabel,
   permissionLabel,
@@ -17,7 +18,7 @@ import { createPublicTranslator } from '@/i18n/catalogues';
 
 import type { BffPage } from './http-protocol';
 import type { PageSite } from './page-contract';
-import { isNativeReturnPath } from './session-path';
+import { isBffRecoveryTarget, isNativeReturnPath } from './session-path';
 
 function scopeContent(page: Extract<BffPage, { kind: 'scope_choices' }>, copy: AuthCopy): string {
   const selection = page.selection;
@@ -63,10 +64,12 @@ function entryContent(page: Extract<BffPage, { kind: 'entry' }>, copy: AuthCopy)
     return `<p>${escape(copy('entry.reauthenticate'))}</p>${signout}`;
   const label = `<p>${escape(copy('entry.account'))}: <strong>${escape(entry.displayLabel)}</strong></p><p>${escape(copy('entry.confirm'))}</p>`;
   const retry = `<p><a href="/api/auth/entry">${escape(copy('entry.retry'))}</a></p><p><a href="/account/consents">${escape(copy('consents.title'))}</a></p>`;
+  // A person with no account holds no data here, and the data-request routes refuse an unknown binding as signed out.
+  const dataRequests = `<p><a href="/account/data">${escape(copy('entry.data_requests'))}</a></p>`;
   if (entry.identityState === 'missing')
     return `${label}<p>${escape(copy('entry.missing'))}</p><form action="/api/auth/entry/create" method="post">${proof}<button type="submit">${escape(copy('entry.create'))}</button></form>${retry}${signout}`;
   if (!entry.contexts)
-    return `${label}<p>${escape(copy('entry.unavailable'))}</p>${retry}${signout}`;
+    return `${label}<p>${escape(copy('entry.unavailable'))}</p>${retry}${dataRequests}${signout}`;
   const choices = entry.contexts.items
     .map(
       (item) =>
@@ -77,7 +80,7 @@ function entryContent(page: Extract<BffPage, { kind: 'entry' }>, copy: AuthCopy)
     entry.contexts.hasNextPage && entry.contexts.endCursor !== null
       ? `<p><a href="/api/auth/entry?cursor=${encodeURIComponent(entry.contexts.endCursor)}">${escape(copy('entry.next'))}</a></p>`
       : '';
-  return `${label}${choices ? `<ul>${choices}</ul>` : `<p>${escape(copy('entry.empty'))}</p>`}${next}${retry}${signout}`;
+  return `${label}${choices ? `<ul>${choices}</ul>` : `<p>${escape(copy('entry.empty'))}</p>`}${next}${retry}${dataRequests}${signout}`;
 }
 function entryFailureContent(
   page: Extract<BffPage, { kind: 'entry_error' }>,
@@ -268,6 +271,40 @@ function federationMutationContent(
   return `<p role="alert">${escape(message)}</p><p><a href="/studio/federation">${escape(copy('mutation.federation_back'))}</a></p>`;
 }
 
+/**
+ * ADR-0106 § 7: a refused or unconfirmed data-request action. A closed refusal has its own sentence and is never
+ * retried; a generic outcome keeps the template's sentence and its deliberate same-request retry. No API text is shown.
+ */
+function dataRequestMutationContent(
+  page: Extract<BffPage, { kind: 'mutation_error' }>,
+  copy: AuthCopy,
+  locale: string,
+): string {
+  const { admin, dataRequest } = createAdministrationTranslator(locale);
+  const refusal = page.dataRequest?.refusal ?? null;
+  const generic: Record<Extract<BffPage, { kind: 'mutation_error' }>['reason'], string> = {
+    denied: copy('mutation.denied'),
+    stale: copy('mutation.stale'),
+    in_progress: copy('mutation.in_progress'),
+    key_reuse: copy('mutation.key_reuse'),
+    unavailable: copy('mutation.unavailable'),
+    validation: dataRequest('error.confirmation'),
+  };
+  const message =
+    refusal === null
+      ? generic[page.reason]
+      : dataRequestRefusalSentence(refusal, admin, dataRequest);
+  const own =
+    refusal === 'subject_is_requester'
+      ? `<p><a href="/account/data">${escape(admin('data_requests.own_data'))}</a></p>`
+      : '';
+  const retry =
+    refusal === null && page.retryable
+      ? `<form action="${escape(page.action)}" method="post">${page.fields.map(([name, value]) => hidden(name, value)).join('')}<button type="submit">${escape(copy('mutation.retry'))}</button></form>`
+      : '';
+  return `<p role="alert">${escape(message)}</p>${own}<p><a href="${escape(page.destination)}">${escape(copy('mutation.lookup'))}</a></p>${retry}`;
+}
+
 function mutationContent(
   page: Extract<BffPage, { kind: 'mutation_error' }>,
   copy: AuthCopy,
@@ -276,6 +313,8 @@ function mutationContent(
 ): string {
   if (page.action.startsWith('/api/studio/federation-'))
     return federationMutationContent(page, copy, locale);
+  if (page.action.startsWith('/api/studio/data-request-'))
+    return dataRequestMutationContent(page, copy, locale);
   const customField = customFieldMutationContent(page, locale, site);
   if (customField !== null) return customField;
   if (page.reason === 'validation' && page.action.startsWith('/api/studio/invitation-'))
@@ -402,7 +441,7 @@ export function renderBffDocument(
       }
       <p><a href="/${escape(site.defaultLocale)}/courses">${escape(copy('shell.catalog'))}</a></p>`;
   const recovery =
-    page.kind === 'mutation_error' && isNativeReturnPath(page.destination)
+    page.kind === 'mutation_error' && isBffRecoveryTarget(page.destination)
       ? page.destination
       : page.kind === 'entry' ||
           page.kind === 'scope_choices' ||

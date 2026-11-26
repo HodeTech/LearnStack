@@ -136,10 +136,10 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-delivery-log.md#r
 
 - Admit GET/HEAD on HTTP paths reaching the native listener callback before
   Next dispatch, including matcher-exempt health/assets and exact scaffolds.
-  The existing ADR-0070 sign-in/sign-out/extend POSTs, the exact ADR-0078/0079
-  [entry/administration form set](#native-entry-and-administration) and ADR-0093's
-  [invitation form set](#verified-invitation-experience) are the only
-  additional admitted methods, with their closed proof/body rules. All other
+  The existing ADR-0070 sign-in/sign-out/extend POSTs and the closed POST set of
+  [Native Entry and Administration](#native-entry-and-administration), with the
+  sections it names, are the only additional admitted methods, with their
+  closed proof/body rules. All other
   methods receive masked no-store 404 without bootstrap or Next method
   conversion. HEAD is bodyless; Node owns malformed protocol input. Adding the
   new form set requires atomic ingress/route/CSRF/owner qualification; acceptance
@@ -229,7 +229,9 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
 - The root exports generated types and the exact authenticated path/operation
   contract. `/authenticated-server` supplies the injected AccountSite method;
   `/administration-server` supplies the closed ADR-0078/0079 administration
-  operations, with no-store requests and bounded response parsing. Aggregate
+  operations and their later closed extensions, the ADR-0106/0107 data-request
+  operations and the export ticket and chunk reads among them, with no-store
+  requests and bounded response parsing. Aggregate
   versions remain canonical decimal strings through JSON, ETag and If-Match;
   creation preserves 201/Location and replay preserves its explicit header.
   The native configured caller owns credentials and the
@@ -293,8 +295,10 @@ native AccountSite/session entry. The source credential, subject association,
 live candidate and exact host ceiling follow Security 11. Public wrappers remain
 anonymous; no browser-controlled header, cookie or hidden field selects authority.
 
-The P03-3 additional native POST set is below; ADR-0093 extends it only with the
-[invitation form set](#verified-invitation-experience).
+The P03-3 additional native POST set is below; ADR-0093 extends it with the
+[invitation form set](#verified-invitation-experience), ADR-0099 with the
+[federation forms](#tenant-federation) and ADR-0106 with the
+[data-request forms](#subject-data-requests).
 
 | Path | Fixed operation |
 |---|---|
@@ -329,8 +333,9 @@ closed switch operation. The
 P03-3 protected document set is `/studio`, `/studio/members`,
 `/studio/members/{MembershipId}`, `/studio/roles`, `/studio/roles/{RoleId}`,
 `/portal` and `/portal/profile`, with canonical resource IDs. Only member-list
-GET in that set accepts cursor/limit; the invitation documents below extend the
-set. Exact route/query/history censuses reject alternatives.
+GET in that set accepts cursor/limit; the invitation documents below and the
+[data-request documents](#subject-data-requests) extend the set. Exact
+route/query/history censuses reject alternatives.
 An actual native-captured `RSC: 1` request may additionally carry one nonblank
 safe-ASCII `_rsc` transport value of at most 128 characters. Remove only that
 field for route-query validation; keep the signed raw target and the native
@@ -1214,3 +1219,142 @@ idempotency key. A secret is never prefilled, echoed into a recovery document or
 retried. Refusals and unsettled outcomes (failed, uncertain, drift, expired,
 superseded) render a localized explanation and a link back to the page; nothing is
 resubmitted, and Resume settles an uncertain write.
+
+## Subject data requests
+
+**Derives from:**
+[ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) §§ 9–11 and
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 4, 6
+and 7; the administrator surface from ADR-0106 §§ 3, 6 and 13 and the
+[ADR-0079](../decisions/0079-bounded-identity-administration.md) form rules. The
+[Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
+
+`GET /account/data` is a fixed native document served before Next, like the consent
+entry, with no public-site bootstrap. Its owner selects its mode and the browser selects
+none: a live `__Host-ls-entry` owner serves the retained own scope of ADR-0106 § 9 (the
+person's retained groups, then one named group); otherwise a live session serves its own
+context's group. No tenant, organization, credential or owner comes from the browser; a
+retained group (`tenant` or an organization UUIDv7) is proved by the API for the entry
+owner on every operation. The document lists the requests with their closed status,
+dates, next step and retained kinds, offers the filings, and shows the erasure and
+closure confirmations as GET steps of their own. Continuation cursors are sealed to the
+owner and purpose. The data-request forms join the closed POST set:
+
+| Path | Operation |
+|---|---|
+| `/api/account/data-requests/export` | Own export |
+| `/api/account/data-requests/erasure` | Own erasure, with a required confirmation |
+| `/api/account/data-requests/closure` | Own account closure, with two required confirmations |
+| `/api/account/data-requests/cancel` | Cancel a request at its version |
+| `/api/account/data-requests/revoke` | Delete an available export at its artifact version |
+| `/api/account/data-requests/download` | Mint a ticket and relay the export |
+| `/api/auth/entry/data-requests` | View one retained group |
+| `/api/auth/entry/data-requests/{export,erasure,closure,cancel,revoke,download}` | The same in that group, on the entry owner |
+
+Each form carries the owner's CSRF proof and the exact Origin, strict single-valued
+fields and, when keyed, a fresh opaque idempotency key; a confirmation the server does
+not find refuses before the API. Success is a 303 to the fixed GET with a closed
+`result`. A refusal is a no-store document with one localized sentence for each API
+reason (`errors.$` or `errors.artifact`), a generic sentence for an unknown reason, and
+its own sentence for an unconfirmed outcome; nothing is retried or replayed. Its way
+back never repeats a submitted group: it is the fixed page (in the session mode a
+refused confirmation's own step) and the mode's exit, account entry or portal. The one
+nonce-bound history guard veils a leaving or restored document and returns to
+`/account/data`, or from a retained group's document to that group's
+`/account/data?group=` page, never to a result, step or cursor. The copy is
+`i18n/messages/{en,tr}/data.json`, a closed key set that native startup refuses when
+incomplete, parameterized or marked up.
+
+[Security](11-security.md#retained-consent-subject-admission) owns the owner rules:
+which owner serves a document, the fallback from a stale entry, the pin to the
+owner's life and the ticket's confinement. A retained document states the instant its
+entry ends. The language follows `Accept-Language` alone in both modes, Turkish when
+the first range is Turkish and English otherwise, as the consent entry decides, and
+the stylesheet is fixed and neutral: the document reads no site, branding or
+Membership preference. It is served without the public-site bootstrap, so no site or
+theme read stands between a person and their data request, and a retained person's
+Membership may have ended and carry no preference; the protected pages' preferred
+locale and tenant theme therefore do not apply to it.
+
+**Download.** The POST mints a ticket and proves the first chunk (index, count, exact
+size) before it answers one `attachment` with the bundle's
+`application/json; charset=utf-8`, the exact `Content-Length`, `no-store` and a sandbox
+policy. It relays one chunk at a time, each after the previous write settled, and
+zeroes each decoded buffer; the native transport zeroes the response bytes it read. A
+refused ticket or first chunk is an ordinary refusal document; any later failure
+destroys the connection, so a short body never completes. Nothing outlives the end of
+the owner the response is pinned to. A ticket lasts fifteen minutes, but a download is
+not bound to one: the relay mints the next ticket about seventy seconds before the
+current one ends, at most twice, so a download can span about three tickets. The
+retained entry's owner ends five
+minutes after its sign-in began and is never extended: the document states that
+instant once, and the download and the confirmation steps each say they must finish
+before it. The ticket stays inside the relay: never in a URL, header, page or log.
+
+- **Resume.** The API answers every chunk refusal with the same `404`: a refreshed
+  credential ends the ticket, and a chunk the API cannot open answers alike. Any `404`
+  mints a new ticket and resumes at the failed index, at most twice per download. Each
+  mint counts against the
+  [ticket bounds](../modules/identity/README.md#subject-data-request-api-p03-10-step-1)
+  (three open per session binding until consumed or expired, twenty per artifact). A
+  chunk whose ciphertext fails to open therefore leaves three open tickets after one
+  download, and the person's next attempt within 15 minutes is refused as the ticket
+  limit; a key that left the ring refuses the renewal itself
+  (`data_export_unavailable`).
+- **Renewal.** A ticket is renewed ahead of its end, before a read or after a pause that
+  left less than a pause window on it, so a large download behind a shared visitor
+  budget is not cut at fifteen minutes. Renewals (at most two) are counted apart from
+  resumes (at most two), so one download mints at most five tickets. A renewal that is
+  refused while the current ticket still reads does not end the download; the ticket's
+  own end then decides.
+- **Pause.** Every chunk read is one API request under the admission budget of
+  [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md): 60 a minute per
+  visitor and 600 per physical peer, which for the BFF is the BFF node. A bundle above
+  about 7.5 MiB therefore meets `429`. A `429`, or a `503` that names its `Retry-After`,
+  is a pause, not a failure: the relay waits the advertised seconds (at least one, at
+  most 60, five when a `429` names none) and repeats the same call. A chunk read keeps
+  its index and its ticket, which a refusal at admission or a rolled-back read did not
+  consume; a renewal is minted again. A pause spends no resume. A pause that would reach
+  the end of the owner is not taken, and before the headers the first chunk must start
+  within one minute, so the person gets the refusal document rather than a long wait.
+- **Stall.** A write or the end that makes no progress for 60 seconds, or is still
+  pending at the deadline, destroys the connection like any failure after the headers:
+  a client that stops reading holds no snapshot credit or plaintext beyond it.
+
+**Administrator surface.** `/studio/data-requests` (only an opaque `cursor`, a fixed
+page of 20), `/studio/data-requests/{RequestId}` (only a closed `result`) and
+`/studio/data-requests/erasure` (only one canonical `membership`; without it the page
+offers no form) are protected Studio documents shown to holders of the advisory
+`canManageMemberships` capability and denied before any data-request read without it;
+the API authorizes every operation. They list the context group's exports and erasures,
+never a closure or a bundle. A receipt names its subject only by Membership, so the list
+reads a member detail exactly as the member page does and keeps only what the member
+list shows (name, status, branch or institution). The audited reads are bounded: at most
+one per distinct first frozen Membership of the page's 20 requests, four at a time, and
+none for a subject known to be Revoked (an administrator's erasure, or an erasure
+awaiting the operator or completed), whose read the API refuses and records as a denial;
+that subject is labelled as revoked, with no link. A Membership another request's read
+already named names its request too. A session failure or cancellation fails the page; a
+`429`, a `5xx` or a transport failure only stops the further reads and leaves the rest
+unnamed, and the member page's own list degrades the same way.
+
+The member page adds that member's requests in the exact group and the export filing for
+that Membership. A member page exists only for an Active or Suspended Membership, so a
+successful revocation answers a 303 to the erasure page of that Membership instead. That
+page reads nothing about the Membership: it states that the membership was revoked, what
+is erased and what is kept, the 24-hour window and that the person may cancel, and holds
+the confirmed erasure form; its refusals recover to it. A Membership revoked earlier is
+reached by the same address with its identifier. A result notice and the title prefix
+show only while the request is still in the state the result describes. The erasure
+page, and the forms that join the closed POST set under the administration form rules:
+
+| Path | Operation |
+|---|---|
+| `/studio/data-requests/erasure?membership={MembershipId}` | GET: the erasure page of a Revoked Membership, which reads nothing about it |
+| `/api/studio/data-request-export` | Export for a Membership of the group, from the member page |
+| `/api/studio/data-request-erasure` | Erasure for a Revoked Membership, from the erasure page, with a required confirmation |
+| `/api/studio/data-request-cancel` | Cancel a request the caller filed, at the request version |
+| `/api/studio/data-request-revoke` | Delete the file of an export the caller filed, at the artifact version |
+
+A closed refusal (`errors.$` or `errors.artifact`) renders its own sentence and offers
+no retry; success is a 303 to the request's page with a closed `result`.

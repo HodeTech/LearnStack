@@ -152,6 +152,25 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
                 "platform.federation.disable", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "platform.federation.disable_attempt", OperationType.SecurityEvent, OperationClass.Must)
+            // The two operator data-request operations of ADR-0107 § 8. Every platform off-path slug is declared from
+            // this source (the platform scope's tests build a Tenancy-only catalogue), whichever module the slug names:
+            // an inspection is audited by the scope's entry row, and `audit.redaction.apply` is the erasure completion's
+            // result row, whose module is `audit` because the operator result write refuses `identity`
+            // (ADR-0044 Amendment 17, ADR-0108 § 1).
+            .DeclareOffPath(
+                "platform.data_request.inspect", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "audit.redaction.apply", OperationType.SecurityEvent, OperationClass.Must)
+            // The two operator closure operations of ADR-0107 § 7, whose rows name the platform sentinel tenant: Begin's
+            // result row, and Finalize's intent row on its attempt slug, written at the scope handle's checkpoint after
+            // the redaction it records, and its result row. Module `platform`, because the operator writes refuse
+            // `identity` (ADR-0044 Amendment 17, ADR-0107 § 8).
+            .DeclareOffPath(
+                "platform.closure.begin", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.closure.finalize_attempt", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.closure.finalize", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "tenancy.tenant_assertion.reject", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(

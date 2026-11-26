@@ -432,4 +432,84 @@ describe('Store page preparation through the actual private native port', () => 
     expect(f.requestRuntime.snapshotCounts().active).toBe(4);
     expect(f.store.peek(active.binding)?.state).toBe('authenticated');
   });
+
+  it('seals the data-request list cursor under its own purpose and refuses the member purpose (ADR-0106)', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const raw = Buffer.from('data-requests:' + 'b'.repeat(64)).toString('base64url');
+    const rawMembers = Buffer.from('members:' + 'c'.repeat(64)).toString('base64url');
+    const original = f.administration.getMockImplementation()!;
+    const listed = (nextCursor: string) => ({
+      kind: 'success' as const,
+      status: 200 as const,
+      etag: null,
+      location: null,
+      replayed: false,
+      data: {
+        items: [],
+        pageInfo: { nextCursor, previousCursor: null, hasNext: true, hasPrevious: false },
+      },
+    });
+    f.administration.mockImplementation(async (...args) =>
+      args[2].kind === 'listDataRequests'
+        ? listed(raw)
+        : args[2].kind === 'listMemberships'
+          ? listed(rawMembers)
+          : original(...args),
+    );
+    const first = page(await document(f, active.binding, { target: '/studio/data-requests' }).work);
+    if (first.outcome.kind !== 'ready' || first.outcome.view.kind !== 'data_requests')
+      throw new Error('Expected data-request page');
+    const cursor = first.outcome.view.endCursor!;
+    expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(JSON.stringify(first)).not.toContain(raw);
+    const members = page(await document(f, active.binding, { target: '/studio/members' }).work);
+    if (members.outcome.kind !== 'ready' || members.outcome.view.kind !== 'members')
+      throw new Error('Expected member page');
+    await document(f, active.binding, { target: '/studio/data-requests?cursor=' + cursor }).work;
+    expect(f.administration).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(Object),
+      { kind: 'listDataRequests', limit: 20, cursor: raw },
+      expect.any(AbortSignal),
+    );
+    const calls = f.administration.mock.calls.length;
+    await expect(
+      document(f, active.binding, {
+        target: '/studio/data-requests?cursor=' + members.outcome.view.endCursor!,
+      }).work,
+    ).rejects.toThrow();
+    await expect(
+      document(f, active.binding, { target: '/studio/members?cursor=' + cursor }).work,
+    ).rejects.toThrow();
+    expect(f.administration).toHaveBeenCalledTimes(calls);
+  });
+
+  it("prepares a Revoked Membership's erasure page with its one query and no member read (ADR-0106 § 3)", async () => {
+    const f = fixture();
+    const active = await f.login();
+    const membershipId = '019a154b-0000-7000-8000-000000000011';
+    const prepared = page(
+      await document(f, active.binding, {
+        target: '/studio/data-requests/erasure?membership=' + membershipId,
+      }).work,
+    );
+    expect(prepared.target).toBe('/studio/data-requests/erasure');
+    expect(prepared.outcome).toEqual({
+      kind: 'ready',
+      view: { kind: 'data_request_erasure', membershipId },
+    });
+    expect(prepared.formKeys).toHaveLength(32);
+    expect(f.administration.mock.calls.map((call) => call[2].kind)).toEqual([
+      'getOwnCapabilities',
+      'getOwnProfile',
+    ]);
+    const calls = f.administration.mock.calls.length;
+    for (const target of [
+      '/studio/data-requests/erasure?membership=' + membershipId.toUpperCase(),
+      '/studio/data-requests/erasure?membership=' + membershipId + '&cursor=YWJj',
+    ])
+      await expect(document(f, active.binding, { target }).work).rejects.toThrow();
+    expect(f.administration).toHaveBeenCalledTimes(calls);
+  });
 });

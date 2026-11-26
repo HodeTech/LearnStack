@@ -6,6 +6,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Domain;
+using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Invitations;
@@ -191,6 +192,85 @@ public sealed class AggregateWriteTests
             TakesDomainObject(extra, identityDomains).Should().BeTrue("an inherited extra root/key write or same-shaped unrelated port cannot borrow the exact metadata exception");
         WriteStoreConstructions(typeof(IInvitationEmailJobStore)).Should().ContainSingle()
             .Which.GetGenericArguments()[0].Should().Be<Invitation>();
+        AssertDataRequestPorts(identityDomains);
+    }
+
+    /// <summary>
+    /// The subject data-request ports (ADR-0106, ADR-0107): each write port derives the typed write store of the one
+    /// root it writes, the reader and phase reader take typed keys only through their enumerated read methods, the
+    /// scheduler takes plain values, and each executor reaches exactly one root.
+    /// </summary>
+    private static void AssertDataRequestPorts(HashSet<Assembly> identityDomains)
+    {
+        WriteStoreConstructions(typeof(IDataRequestStore)).Should().ContainSingle()
+            .Which.GetGenericArguments()[0].Should().Be<DataSubjectRequest>();
+        WriteStoreConstructions(typeof(IDataExportTicketStore)).Should().ContainSingle()
+            .Which.GetGenericArguments()[0].Should().Be<DataExportTicket>();
+        TakesDomainObject(typeof(IDataRequestFulfillmentScheduler), identityDomains)
+            .Should().BeFalse("the scheduler takes the request's identifier and SharedKernel vocabulary, never a root");
+        foreach (var port in new[] { typeof(IDataRequestReader), typeof(IDataRequestJobPhaseReader) })
+        {
+            TakesDomainObject(port, identityDomains).Should().BeFalse($"{port.Name} reads its typed keys only through enumerated read methods");
+            foreach (var method in port.GetMethods().Where(method => ReadMethods.Contains(method)).ToList())
+            {
+                ReadMethods.Remove(method).Should().BeTrue();
+                try { TakesDomainObject(port, identityDomains).Should().BeTrue($"removing only {method.Name} must expose its typed key"); }
+                finally { ReadMethods.Add(method); }
+            }
+        }
+
+        AggregatesWrittenBy(typeof(DataRequestService).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataSubjectRequest)], "the request executor writes the request root only");
+        AggregatesWrittenBy(typeof(DataExportDownloadService).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataExportTicket)], "the download executor writes the ticket root only");
+        AggregatesWrittenBy(typeof(DataRequestFailureReconciler).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataSubjectRequest)]);
+        // ADR-0107 § 5: the erasure job is a one-root message handler; the Membership, Invitation and export-request writes
+        // are the Identity participant's, through the erasure service, which is no message handler. Its roots are counted
+        // here so the hole stays visible: it writes exactly these three and no other.
+        AggregatesWrittenBy(typeof(DataErasureJobHandlers).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataSubjectRequest)], "the erasure job writes the request root only");
+        // ADR-0107 § 7: a closure's per-group fan-out is an operator act in the operator-act namespace, not a data-request
+        // handler: it writes the request root only, the fan-out it creates and the erasure it cancels and replaces.
+        var fanOut = typeof(DataRequestService).Assembly.GetType(
+            "LearnStack.Modules.Identity.Application.OperatorActs.FanOutClosureCommandHandler", throwOnError: true)!;
+        IsMessageHandler(fanOut).Should().BeTrue();
+        AggregatesWrittenBy(fanOut.GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataSubjectRequest)], "a closure's fan-out writes the request root only");
+        IsMessageHandler(typeof(DataErasureService)).Should().BeFalse("the erasure service is reached only through the participant");
+        AggregatesWrittenBy(typeof(DataErasureService).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataSubjectRequest), typeof(Membership), typeof(Invitation)],
+                "the erasure cancels an export request, erases Memberships and revokes invitations, and nothing else");
+        var handlers = typeof(DataRequestService).Assembly.GetTypes()
+            .Where(type => type.Namespace == typeof(DataRequestService).Namespace && IsMessageHandler(type)
+                && type != typeof(DataExportJobHandlers) && type != typeof(DataErasureJobHandlers))
+            .ToList();
+        static List<Type> ParameterTypes(Type handler) =>
+            handler.GetConstructors().Single().GetParameters().Select(parameter => parameter.ParameterType).ToList();
+        var live = handlers.Where(handler => ParameterTypes(handler).Contains(typeof(LiveDataRequestAdmission))).ToList();
+        var retained = handlers.Where(handler => ParameterTypes(handler).Contains(typeof(RetainedDataRequestAdmission))).ToList();
+        live.Should().HaveCount(17, "the seventeen live-session data-request operations each have one thin handler");
+        retained.Should().HaveCount(10, "the ten retained-entry data-request operations each have one thin handler");
+        handlers.Should().BeEquivalentTo(live.Concat(retained),
+            "every data-request handler is admitted by exactly one of the two admissions");
+        foreach (var handler in live)
+        {
+            var parameters = ParameterTypes(handler);
+            parameters.Should().HaveCount(2).And.Contain(typeof(LiveDataRequestAdmission), handler.Name);
+            parameters.Should().ContainSingle(type => type == typeof(DataRequestService) || type == typeof(DataExportDownloadService),
+                $"{handler.Name} delegates only to one countable single-root executor");
+        }
+
+        foreach (var handler in retained)
+        {
+            var parameters = ParameterTypes(handler);
+            parameters.Should().ContainSingle(type => type == typeof(RetainedDataRequestAdmission), handler.Name);
+            parameters.Count(type => type == typeof(DataRequestService) || type == typeof(DataExportDownloadService))
+                .Should().BeLessThanOrEqualTo(1, $"{handler.Name} delegates to at most one countable single-root executor");
+            parameters.Should().OnlyContain(type => type == typeof(RetainedDataRequestAdmission)
+                || type == typeof(DataRequestService) || type == typeof(DataExportDownloadService),
+                $"{handler.Name} takes no write port of its own");
+        }
     }
 
     /// <summary>Exercise the same handler predicate and constructor scan as production.</summary>
@@ -331,6 +411,12 @@ public sealed class AggregateWriteTests
         typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.ReadResultAsync))!,
         typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.LockInvitationAsync))!,
         typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.ReadFinalAsync))!,
+        typeof(IDataRequestReader).GetMethod(nameof(IDataRequestReader.FindAsync))!,
+        typeof(IDataRequestReader).GetMethod(nameof(IDataRequestReader.ReadArtifactsAsync))!,
+        typeof(IDataRequestReader).GetMethod(nameof(IDataRequestReader.FindArtifactLockedAsync))!,
+        typeof(IDataRequestReader).GetMethod(nameof(IDataRequestReader.FindMembershipSubjectAsync))!,
+        typeof(IDataRequestJobPhaseReader).GetMethod(nameof(IDataRequestJobPhaseReader.ReadAsync))!,
+        typeof(IDataRequestJobPhaseReader).GetMethod(nameof(IDataRequestJobPhaseReader.ReadManyAsync))!,
     ];
 
     private interface IIdOnlyWriteProbe { Task DeleteAsync(CourseId id); }

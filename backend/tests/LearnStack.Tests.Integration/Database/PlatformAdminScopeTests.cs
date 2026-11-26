@@ -4,7 +4,9 @@ using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
@@ -1418,6 +1420,232 @@ public sealed class PlatformAdminScopeTests
         }
     }
 
+    [Fact]
+    public async Task Only_The_Erasure_Completion_And_The_Closure_Finalize_Redact_Each_Its_Own_Plans_And_A_Refusal_Leaves_The_Scope_Usable()
+    {
+        // ADR-0108 § 2, ADR-0107 § 7: the redaction is bound to the admitted operation and the plan's pass. complete_erasure
+        // redacts an erasure's plan and the closure's Finalize a closure's tenant and sentinel passes; each is refused the
+        // other's, and every other operation that enters the platform scope is refused all three. A refusal comes before
+        // the executor is resolved and is not a failed statement.
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var redactor = new RecordingRedactor();
+        var scope = Build(dataSource, NullLogger<PlatformAdminScope>.Instance, AuditStoreScopeFactory(redactor));
+        var tenant = Guid.CreateVersion7();
+        var plans = new (string Name, AuditRedactionPlan Plan, PlatformOperation Owner)[]
+        {
+            ("erasure", Plan(tenant), PlatformOperations.ErasureComplete),
+            ("closure tenant pass", ClosureTenantPlan(tenant), PlatformOperations.ClosureFinalize),
+            ("closure sentinel pass", ClosureSentinelPlan(), PlatformOperations.ClosureFinalize),
+        };
+        var entering = PlatformOperations.All.Where(operation => operation.NeedsPlatformRole).ToList();
+        entering.Should().Contain([PlatformOperations.ErasureComplete, PlatformOperations.ClosureFinalize]).And.HaveCountGreaterThan(2);
+
+        foreach (var operation in entering)
+        {
+            await using var handle = await scope.EnterAsync(TestPlatformAdmissions.Admission(operation));
+            foreach (var (name, plan, _) in plans.Where(candidate => !ReferenceEquals(candidate.Owner, operation)))
+            {
+                var redact = async () => await handle.RedactAuditAsync(plan);
+
+                await redact.Should().ThrowAsync<InvalidOperationException>(name + " under " + operation.AuditSlug)
+                    .WithMessage("*may not redact*");
+                (await ScalarAsync<int>(handle, "SELECT 1")).Should().Be(1, "a refusal before anything ran does not fault the scope");
+            }
+        }
+
+        redactor.Calls.Should().BeEmpty("no pairing but the sanctioned ones reaches the executor");
+
+        // And each owner's own plans do reach it, with the admission its scope was entered with.
+        foreach (var owner in new[] { PlatformOperations.ErasureComplete, PlatformOperations.ClosureFinalize })
+        {
+            var admission = TestPlatformAdmissions.Admission(owner);
+            await using var handle = await scope.EnterAsync(admission);
+            foreach (var (_, plan, _) in plans.Where(candidate => ReferenceEquals(candidate.Owner, owner)))
+            {
+                await handle.RedactAuditAsync(plan);
+                var call = redactor.Calls[^1];
+                call.Plan.Should().BeSameAs(plan);
+                call.Admission.Should().BeSameAs(admission);
+            }
+        }
+
+        redactor.Calls.Select(call => call.Plan.Pass).Should().Equal(
+            AuditRedactionPass.Erasure, AuditRedactionPass.ClosureTenant, AuditRedactionPass.ClosureSentinel);
+    }
+
+    [Fact]
+    public async Task The_Redaction_Runs_On_The_Scope_s_Connection_And_Transaction_With_Its_Admission_And_Commits_With_The_Result_Row()
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var host = $"redact-{Guid.NewGuid():N}.example.com";
+        var redactor = new RecordingRedactor(async (connection, transaction) =>
+        {
+            // The executor's statements are the scope's: the same backend and transaction, so its write commits or rolls
+            // back with the act. A host row stands in for the audit rows it would change.
+            await ScalarAsync<int>(connection, transaction,
+                "INSERT INTO platform_host_to_tenant (host, tenant_id, is_active, is_publicly_live) VALUES (@h, @t, true, true) RETURNING 1",
+                ("h", host), ("t", SchemaFixture.TenantA));
+            return await ScalarAsync<long>(connection, transaction, "SELECT txid_current()");
+        });
+        var scope = Build(dataSource, NullLogger<PlatformAdminScope>.Instance, AuditStoreScopeFactory(redactor));
+        var admission = TestPlatformAdmissions.Admission(
+            PlatformOperations.ErasureComplete, ticket: "INC-9", correlationId: $"corr-{Guid.NewGuid():N}");
+        var target = Guid.CreateVersion7();
+        var plan = Plan(target);
+
+        await using (var handle = await scope.EnterAsync(admission))
+        {
+            var own = await ScalarAsync<long>(handle, "SELECT txid_current()");
+
+            var report = await handle.RedactAuditAsync(plan);
+
+            var call = redactor.Calls.Should().ContainSingle().Which;
+            call.Plan.Should().BeSameAs(plan);
+            call.Admission.Should().BeSameAs(admission, "the executor checks the admission the scope was entered with");
+            redactor.Observed.Should().Equal([own], "the executor ran inside the scope's own work transaction");
+            report.RowsSelected.Should().Be(0);
+            await handle.WriteResultAsync(new PlatformResult(
+                TenantId.From(target), "DataSubjectRequest", plan.Subject.RequestId.ToString("D"), "{}", report.ToClosedJson()));
+            await handle.CommitAsync();
+        }
+
+        await using var read = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        (await ScalarAsync<long>(read, null, "SELECT count(*) FROM platform_host_to_tenant WHERE host = @h", ("h", host)))
+            .Should().Be(1, "the redaction committed with the result row");
+        var rows = await Rows(read, admission.Operator.CorrelationId!);
+        var result = rows.Single(row => row.Operation == PlatformOperations.ErasureComplete.AuditSlug);
+        result.Tenant.Should().Be(target, "the result row names the request's real tenant");
+        result.Actor.Should().BeNull();
+        result.Metadata.Should().NotContain("INC-9", "a row the tenant can read never carries the operator's ticket");
+        rows.Single(row => row.Operation == PlatformAdminScope.EnterOperation).Metadata.Should().Contain("INC-9");
+
+        await using var cleanup = await Build(dataSource).EnterAsync(Admission());
+        await cleanup.ExecuteAsync("DELETE FROM platform_host_to_tenant WHERE host = @h", [new PlatformSqlParameter("h", host)]);
+        await CompleteAsync(cleanup);
+    }
+
+    [Fact]
+    public async Task A_Redaction_Rolls_Back_With_A_Scope_That_Is_Abandoned_And_Writes_Nothing_After_Its_Result_Row_Or_Its_End()
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var host = $"abandon-{Guid.NewGuid():N}.example.com";
+        var redactor = new RecordingRedactor(async (connection, transaction) =>
+        {
+            await ScalarAsync<int>(connection, transaction,
+                "INSERT INTO platform_host_to_tenant (host, tenant_id, is_active, is_publicly_live) VALUES (@h, @t, true, true) RETURNING 1",
+                ("h", host), ("t", SchemaFixture.TenantA));
+            return 0;
+        });
+        var scope = Build(dataSource, NullLogger<PlatformAdminScope>.Instance, AuditStoreScopeFactory(redactor));
+        var target = Guid.CreateVersion7();
+
+        await using (var abandoned = await scope.EnterAsync(TestPlatformAdmissions.Admission(PlatformOperations.ErasureComplete)))
+        {
+            await abandoned.RedactAuditAsync(Plan(target));
+            // Disposed without a commit.
+        }
+
+        await using var read = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        (await ScalarAsync<long>(read, null, "SELECT count(*) FROM platform_host_to_tenant WHERE host = @h", ("h", host)))
+            .Should().Be(0, "an abandoned act rolls its redaction back with it");
+
+        var handle = await scope.EnterAsync(TestPlatformAdmissions.Admission(PlatformOperations.ErasureComplete));
+        await handle.WriteResultAsync(new PlatformResult(TenantId.From(target), "DataSubjectRequest", target.ToString("D"), null, "{}"));
+        var afterResult = async () => await handle.RedactAuditAsync(Plan(target));
+        await afterResult.Should().ThrowAsync<InvalidOperationException>().WithMessage("*last write*",
+            "a redaction after the result row would change what the row does not describe");
+        await handle.CommitAsync();
+        var afterCommit = async () => await handle.RedactAuditAsync(Plan(target));
+        await afterCommit.Should().ThrowAsync<InvalidOperationException>("the connection closed at the commit");
+        await handle.DisposeAsync();
+        var afterDisposal = async () => await handle.RedactAuditAsync(Plan(target));
+        await afterDisposal.Should().ThrowAsync<ObjectDisposedException>();
+        redactor.Calls.Should().ContainSingle("only the abandoned act reached the executor");
+    }
+
+    [Fact]
+    public async Task A_Failed_Redaction_Faults_The_Scope_So_Nothing_Of_The_Act_Commits_While_The_Entry_Stays()
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var host = $"failed-{Guid.NewGuid():N}.example.com";
+        var redactor = new RecordingRedactor(async (connection, transaction) =>
+            await ScalarAsync<int>(connection, transaction, "SELECT 1/0"));
+        var scope = Build(dataSource, NullLogger<PlatformAdminScope>.Instance, AuditStoreScopeFactory(redactor));
+        var admission = TestPlatformAdmissions.Admission(PlatformOperations.ErasureComplete, correlationId: $"corr-{Guid.NewGuid():N}");
+        var target = Guid.CreateVersion7();
+
+        await using (var handle = await scope.EnterAsync(admission))
+        {
+            await InsertHostAsync(handle, host);
+
+            var redact = async () => await handle.RedactAuditAsync(Plan(target));
+
+            await redact.Should().ThrowAsync<PostgresException>("the executor's failure is the caller's, unchanged");
+            var result = async () => await handle.WriteResultAsync(
+                new PlatformResult(TenantId.From(target), "DataSubjectRequest", target.ToString("D"), null, "{}"));
+            await result.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Dispose the scope*");
+            var commit = async () => await handle.CommitAsync();
+            await commit.Should().ThrowAsync<InvalidOperationException>();
+        }
+
+        await using var read = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        (await ScalarAsync<long>(read, null, "SELECT count(*) FROM platform_host_to_tenant WHERE host = @h", ("h", host)))
+            .Should().Be(0, "the work before the failed redaction rolled back with it");
+        (await Rows(read, admission.Operator.CorrelationId!)).Should().ContainSingle()
+            .Which.Operation.Should().Be(PlatformAdminScope.EnterOperation, "the entry is on the record and no result row is");
+    }
+
+    [Fact]
+    public async Task Without_A_Registered_Executor_A_Completion_Cannot_Redact_And_Cannot_Commit()
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var target = Guid.CreateVersion7();
+        await using var handle = await Build(dataSource).EnterAsync(TestPlatformAdmissions.Admission(PlatformOperations.ErasureComplete));
+
+        var redact = async () => await handle.RedactAuditAsync(Plan(target));
+
+        await redact.Should().ThrowAsync<InvalidOperationException>().WithMessage("*IAuditRedactor*",
+            "a deployment that cannot redact refuses by name rather than completing an erasure with nothing redacted");
+        var result = async () => await handle.WriteResultAsync(
+            new PlatformResult(TenantId.From(target), "DataSubjectRequest", target.ToString("D"), null, "{}"));
+        await result.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Dispose the scope*");
+    }
+
+    /// <summary>A plan for an erasure a person filed in a tenant-wide group; its identifiers are fresh.</summary>
+    private static AuditRedactionPlan Plan(Guid tenant) => new(new UserDataSubject(
+        Guid.CreateVersion7(), DataRequestKind.Erasure, DataRequestOrigin.Self, UserId.From(Guid.CreateVersion7()),
+        new DataRequestScopeGroup(TenantId.From(tenant), null), [Guid.CreateVersion7()]));
+
+    /// <summary>A closure's pass over a tenant; its identifiers are fresh.</summary>
+    private static AuditRedactionPlan ClosureTenantPlan(Guid tenant) =>
+        AuditRedactionPlan.ForClosureTenant(TenantId.From(tenant), UserId.From(Guid.CreateVersion7()), [Guid.CreateVersion7()]);
+
+    /// <summary>A closure's pass over the platform sentinel tenant; its identifiers are fresh.</summary>
+    private static AuditRedactionPlan ClosureSentinelPlan() => AuditRedactionPlan.ForClosureSentinel(
+        UserId.From(Guid.CreateVersion7()), IdentitySubjectKey.FromBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
+
+    /// <summary>Records each call and runs <paramref name="work"/> on the handed-over connection and transaction.</summary>
+    private sealed class RecordingRedactor(
+        Func<System.Data.Common.DbConnection, System.Data.Common.DbTransaction, Task<long>>? work = null) : IAuditRedactor
+    {
+        public List<(AuditRedactionPlan Plan, PlatformAdmission Admission, System.Data.Common.DbTransaction Transaction)> Calls { get; } = [];
+
+        public List<long> Observed { get; } = [];
+
+        public async Task<AuditRedactionReport> RedactAsync(
+            AuditRedactionPlan plan, PlatformAdmission admission, System.Data.Common.DbConnection connection,
+            System.Data.Common.DbTransaction transaction, CancellationToken cancellationToken = default)
+        {
+            Calls.Add((plan, admission, transaction));
+            if (work is not null)
+            {
+                Observed.Add(await work(connection, transaction));
+            }
+
+            return new AuditRedactionReport(0, new Dictionary<AuditRedactedColumn, long>(), []);
+        }
+    }
+
     private static Task<int> InsertHostAsync(IPlatformAdminScopeHandle handle, string host) =>
         handle.ExecuteAsync(
             "INSERT INTO platform_host_to_tenant (host, tenant_id, is_active, is_publicly_live) VALUES (@host, @tenant, true, true)",
@@ -1552,8 +1780,8 @@ public sealed class PlatformAdminScopeTests
             new SystemGuidFactory(),
             logger);
 
-    private static IServiceScopeFactory AuditStoreScopeFactory() =>
-        new ServiceCollection()
+    private static IServiceScopeFactory AuditStoreScopeFactory(IAuditRedactor? redactor = null) =>
+        (redactor is null ? new ServiceCollection() : new ServiceCollection().AddSingleton(redactor))
             .AddMetrics()
             .AddLogging()
             .AddScoped<IAuditStateCapture, AuditStateCapture>()

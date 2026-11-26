@@ -1359,7 +1359,14 @@ public sealed partial class TenancySchemaTests
                 "learnstack_identity_ingress identity_provider_event_scan INSERT,SELECT",
                 "learnstack_identity_ingress identity_provider_event_problems INSERT,SELECT",
                 "learnstack_identity_rebind identity_authority SELECT",
-                "learnstack_identity_rebind audit_log INSERT"]),
+                "learnstack_identity_rebind audit_log INSERT",
+                // ADR-0107 § 8. The application role's column-limited UPDATEs and the platform role's closed-column
+                // SELECT and UPDATE on data_subject_requests are column grants, invisible here; DataRequestStorageTests
+                // asserts the complete column matrix, and learnstack_platform has no table-level line at all.
+                "learnstack_app data_subject_requests INSERT,SELECT",
+                "learnstack_app data_export_artifacts INSERT,SELECT",
+                "learnstack_app data_export_tickets INSERT,SELECT",
+                "learnstack_app data_export_chunks DELETE,INSERT,SELECT"]),
         "every line is one line of the migration chains' grant matrices, and "
         + "learnstack_outbox_admin holds only declared outbox/delivery scheduling columns "
         + "and terminal audit INSERT");

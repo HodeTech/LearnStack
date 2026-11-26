@@ -1304,3 +1304,7 @@ The Decision, Status, Date and prior amendments of this record are unchanged, ex
 the inline errata beside Amendment 10 item 6 (recorded by Amendment 11), Amendment 11
 item 5 and Amendment 12 item 1 (recorded by Amendments 12 and 13). Acceptance of the
 linked records is not proof that anything they decide is implemented.
+
+### Amendment 14 — Offboarding of the federation row and broker is Phase 11 data operations (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) assign the tenant offboarding this record routes to P03-10. Per-person erasure and closure leave `federation_connections` and its broker untouched and report the pseudonymous pending and test actor identifiers as `federation_actor_reference`. Whole-tenant deprovisioning, including the removal of the row and broker and a tenant archived or deleted with a live row, belongs to Phase 11 data operations, triggered by the first real tenant offboarding request. Until then Disable, Delete and the operator sweep apply, and the statements above that P03-10 removes the connection are superseded by this one. The Decision, Status, Date and every other section of this record are unchanged.

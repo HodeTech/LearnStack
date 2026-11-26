@@ -22,6 +22,10 @@ namespace LearnStack.Infrastructure.PlatformOperator;
 /// The descriptor carries the operator attribution of the admission, which the audit composer
 /// records as <c>metadata.operator</c> and the reason slug. It carries no ticket.
 /// </para>
+/// <para>
+/// A frame whose context names an organization is evidence only for a closure's fan-out (ADR-0102
+/// Amendment 2), which the executor alone builds that way.
+/// </para>
 /// </remarks>
 internal sealed class PlatformOperatorOperationSource(
     IOperationPolicyCatalog policies,
@@ -72,6 +76,8 @@ internal sealed class PlatformOperatorOperationSource(
     protected override bool IsEvidenceCurrent(object? evidence) => evidence is Frame frame
         && ReferenceEquals(frame, _frame) && frame.IsOpen
         && frame.Context.HostScope is null && frame.Context.UserId is null
+        && (frame.Context.OrganizationId is null
+            || ReferenceEquals(frame.Admission.Operation, PlatformOperations.ClosureFanOut))
         && frame.Context.IsResolved && frame.Context.Origin == TenantContextOrigin.Ambient
         && ReferenceEquals(accessor.Current, frame.Context);
 

@@ -223,6 +223,26 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
     }
 
     /// <inheritdoc />
+    public void WithholdProviderEvent(ProviderEventAuditEvidence evidence)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        if (!HasOpenFrame || State != AuditIntentState.Pending)
+            throw new InvalidOperationException("Provider observation is withheld only from an actual pending audit frame.");
+        var candidates = Enumerable.Range(0, _intents.Count).Where(index => _intentFrames[index] == CurrentFrame
+            && _intents[index].Operation == "audit.provider_event.observe").ToArray();
+        if (candidates.Length != 1 || _intents[candidates[0]] is not
+            {
+                ProviderEvent: null, ModuleName: "audit", OperationClass: OperationClass.Must, OrganizationId: null,
+                GlobalIdentity: null, Authorization: null, JobId: null, ParentJobId: null,
+            } intent
+            || intent.TenantId != evidence.TenantId || intent.CausationId != evidence.EventId
+            || intent.ActorUserId != UserId.SystemActor || intent.EntityType != typeof(ProviderEventAuditEvidence))
+            throw new InvalidOperationException("Provider observation withholding requires its one unclaimed delivery intent.");
+        _intents.RemoveAt(candidates[0]);
+        _intentFrames.RemoveAt(candidates[0]);
+    }
+
+    /// <inheritdoc />
     public void Designate<TId>(IAggregateRoot<TId> aggregate)
         where TId : struct, IStronglyTypedId<Guid>
     {

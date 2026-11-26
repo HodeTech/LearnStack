@@ -43,6 +43,20 @@ public sealed partial class TenantContextConstructionTests
         WHERE ROW(tenant_id,id)>ROW(@afterTenant,@afterOrganization) AND ROW(tenant_id,id)<=ROW(@upperTenant,@upperOrganization)
         ORDER BY tenant_id,id LIMIT @limit
         """;
+    // ADR-0107 § 7: the same facts for many scopes on an entered platform scope; both key columns join, and the tenant-wide
+    // scope travels as the nil identifier no organization has.
+    private const string OrganizationIdentityPlatformLifecycleSql = """
+        SELECT scope.position,
+               t.id IS NOT NULL AND t.deleted_at IS NULL,
+               t.id IS NOT NULL AND t.deleted_at IS NULL AND t.status IN ('Trial', 'Active'),
+               o.id IS NOT NULL,
+               o.id IS NOT NULL AND o.deleted_at IS NULL AND o.status = 'Active'
+        FROM unnest(@tenants::uuid[], @organizations::uuid[]) WITH ORDINALITY AS scope(tenant_id, organization_id, position)
+        LEFT JOIN public.tenants AS t ON t.id = scope.tenant_id
+        LEFT JOIN public.organizations AS o
+          ON o.tenant_id = t.id AND o.id = NULLIF(scope.organization_id, '00000000-0000-0000-0000-000000000000'::uuid)
+        ORDER BY scope.position
+        """;
     private const string OrganizationIdentityLifecycleSql = """
         SELECT t.id IS NOT NULL AND t.deleted_at IS NULL,
                t.id IS NOT NULL AND t.deleted_at IS NULL AND t.status IN ('Trial', 'Active'),
@@ -92,6 +106,8 @@ public sealed partial class TenantContextConstructionTests
             "SELECT tenant_id,id FROM organizations ORDER BY tenant_id DESC,id DESC LIMIT 1"),
         new(OrganizationIdentityLifecycle, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.IdentityScopeLifecycleReader",
             "LifecycleSql", OrganizationIdentityLifecycleSql),
+        new(OrganizationIdentityLifecycle, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.IdentityScopeLifecycleReader",
+            "PlatformLifecycleSql", OrganizationIdentityPlatformLifecycleSql),
         new(OrganizationSelfDiscovery, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader",
             "LabelsSql", OrganizationSelfDiscoverySql),
         new(OrganizationWriteStores, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.OrganizationWriteStore",
@@ -194,6 +210,14 @@ public sealed partial class TenantContextConstructionTests
             "command.Parameters.AddWithValue(\"tenant\", candidate.TenantId.Value)",
             "command.Parameters.AddWithValue(\"organization\", NpgsqlDbType.Uuid, candidate.OrganizationId is { } organization ? organization.Value : DBNull.Value)",
             "command.ExecuteReaderAsync(cancellationToken)");
+        Require(OrganizationIdentityLifecycle, "IdentityScopeLifecycleReader", "ReadOnPlatformScopeAsync",
+            """
+            handle.QueryAsync(PlatformLifecycleSql,
+                [new PlatformSqlParameter("tenants", tenants), new PlatformSqlParameter("organizations", organizations)],
+                reader => (Position: reader.GetInt64(0), Facts: new IdentityScopeLifecycle(
+                    reader.GetBoolean(1), reader.GetBoolean(2), reader.GetBoolean(3), reader.GetBoolean(4))),
+                cancellationToken)
+            """);
         Require(OrganizationSelfDiscovery, "PreContextSelfDiscoveryScopeReader", "ReadAsync",
             "deadline.CancelAfter(TimeSpan.FromSeconds(5))",
             "self.BeginSelfDiscoveryTransactionAsync(witness, deadline.Token)",
@@ -206,6 +230,10 @@ public sealed partial class TenantContextConstructionTests
             && lifecycleRoot.DescendantTokens().Count(token => token.IsKind(SyntaxKind.IdentifierToken)
                 && token.ValueText == "LifecycleSql") != 3)
             offenders.Add(OrganizationIdentityLifecycle + ": the SQL constant must have exactly its declaration and two executed argument uses");
+        if (roots.TryGetValue(OrganizationIdentityLifecycle, out var platformRoot)
+            && platformRoot.DescendantTokens().Count(token => token.IsKind(SyntaxKind.IdentifierToken)
+                && token.ValueText == "PlatformLifecycleSql") != 2)
+            offenders.Add(OrganizationIdentityLifecycle + ": the platform SQL constant must have exactly its declaration and one executed argument use");
         if (roots.TryGetValue(OrganizationSelfDiscovery, out var selfRoot)
             && selfRoot.DescendantTokens().Count(token => token.IsKind(SyntaxKind.IdentifierToken)
                 && token.ValueText == "LabelsSql") != 2)
@@ -236,6 +264,7 @@ public sealed partial class TenantContextConstructionTests
                 "ReadAsync" when path == OrganizationSelfDiscovery => ("OwnMembershipScopeWitness witness, CancellationToken cancellationToken = default", "Task<OwnMembershipScopeLabel?>", SyntaxKind.PublicKeyword, true),
                 "ReadAsync" => ("TenantId tenantId, OrganizationId? organizationId, CancellationToken cancellationToken = default", "Task<IdentityScopeLifecycle>", SyntaxKind.PublicKeyword, true),
                 "ReadAuthorizationAsync" => ("IUnitOfWork child, AuthorizationCandidate candidate, CancellationToken cancellationToken = default", "Task<IdentityScopeLifecycle>", SyntaxKind.PublicKeyword, true),
+                "ReadOnPlatformScopeAsync" => ("IPlatformAdminScopeHandle handle, IReadOnlyList<IdentityLifecycleScope> scopes, CancellationToken cancellationToken = default", "Task<IReadOnlyList<IdentityScopeLifecycle>>", SyntaxKind.PublicKeyword, true),
                 _ => throw new InvalidOperationException("Unknown organization binding owner."),
             };
             if (ownerMethod.Body is null || ownerMethod.TypeParameterList is not null
@@ -245,7 +274,11 @@ public sealed partial class TenantContextConstructionTests
                 || ownerMethod.Modifiers.Any(token => token.IsKind(SyntaxKind.StaticKeyword))
                 || ownerMethod.Modifiers.Any(token => token.IsKind(SyntaxKind.AsyncKeyword)) != isAsync)
             { offenders.Add(path + ": changed binding owner signature " + method); return; }
-            if (path == OrganizationIdentityLifecycle)
+            if (path == OrganizationIdentityLifecycle && method == "ReadOnPlatformScopeAsync"
+                && ownerMethod.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().Any(item =>
+                    SyntaxFactory.AreEquivalent(item.Type, SyntaxFactory.ParseTypeName("NpgsqlCommand"))))
+                offenders.Add(path + ": the platform read runs on the handle it is given and builds no command of its own");
+            if (path == OrganizationIdentityLifecycle && method != "ReadOnPlatformScopeAsync")
             {
                 var construction = method == "ReadAsync"
                     ? "new NpgsqlCommand(LifecycleSql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)transaction) { CommandTimeout = 10 }"
@@ -512,7 +545,7 @@ public sealed partial class TenantContextConstructionTests
             return OrganizationLockedReadIsExact(literal.SyntaxTree.GetRoot());
         if (path == OrganizationOccurrences && member == "OrganizationLifecyclePageSql")
             return literal.Parent is EqualsValueClauseSyntax;
-        if (path == OrganizationIdentityLifecycle && member == "LifecycleSql"
+        if (path == OrganizationIdentityLifecycle && member is "LifecycleSql" or "PlatformLifecycleSql"
             || path == OrganizationSelfDiscovery && member == "LabelsSql")
             return literal.Parent is EqualsValueClauseSyntax
             {
@@ -592,7 +625,7 @@ public sealed partial class TenantContextConstructionTests
     public void Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages()
     {
         var production = OrganizationSources();
-        OrganizationReadOffenders(production).Should().BeEmpty("all eight direct runtime SQL subjects, both composed page owners, and all four exact migration owners must exist: {0}",
+        OrganizationReadOffenders(production).Should().BeEmpty("all nine direct runtime SQL subjects, both composed page owners, and all four exact migration owners must exist: {0}",
             string.Join("\n", OrganizationReadOffenders(production)));
         foreach (var subject in OrganizationSqlSubjects)
         {

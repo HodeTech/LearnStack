@@ -79,6 +79,7 @@ public sealed class IdentityMembershipFixture : IAsyncLifetime
         await CommitMemberAsync(app, SchemaFixture.TenantB, SchemaFixture.OrgB1, BranchMembershipB, PersonB, BuiltInRoleKey.Learner);
         await InvitationSchemaSeed.SeedAsync(appConnection);
         await FederationConnectionSchemaSeed.SeedAsync(appConnection);
+        await DataRequestSchemaSeed.SeedAsync(appConnection);
     }
 
     private static async Task CommitMemberAsync(NpgsqlConnection connection, Guid tenant, Guid? organization,

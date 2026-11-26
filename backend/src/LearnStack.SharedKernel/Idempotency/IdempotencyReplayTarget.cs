@@ -11,6 +11,7 @@ public enum IdempotencyReplayTargetKind
     TenantSetting,
     CustomFieldDefinition,
     MembershipFieldConsent,
+    DataSubjectRequest,
 }
 
 /// <summary>Internal immutable result metadata; it grants no disclosure authority.</summary>

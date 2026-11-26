@@ -6,8 +6,10 @@ using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Application.Invitations;
+using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.SharedKernel.Permissions;
 
 namespace LearnStack.Modules.Identity.Application;
@@ -40,6 +42,38 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     public static PermissionDefinition MembershipAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.MembershipAdmin);
     public static PermissionDefinition RoleAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.RoleAdmin);
     public const string FederationReadOperation = "identity.federation.read";
+
+    // ADR-0106 § 4: the subject's own live-session data-request operations carry no key (OwnDataRequest, whose
+    // operation ids share this prefix); the administrator's reuse the identity.membership.admin alternatives.
+    public const string OwnDataExportCreateOperation = "identity.data_request.create_own_export";
+    public const string OwnDataErasureCreateOperation = "identity.data_request.create_own_erasure";
+    public const string OwnAccountClosureCreateOperation = "identity.data_request.create_own_closure";
+    public const string OwnDataRequestListOperation = "identity.data_request.list_own";
+    public const string OwnDataRequestReadOperation = "identity.data_request.read_own";
+    public const string OwnDataRequestCancelOperation = "identity.data_request.cancel_own";
+    public const string OwnDataExportRevokeOperation = "identity.data_request.revoke_own_export";
+    public const string OwnDataExportTicketOperation = "identity.data_request.mint_export_ticket";
+    public const string OwnDataExportChunkOperation = "identity.data_request.read_export_chunk";
+    public const string OwnDataRequestReceiptOperation = "identity.data_request.read_own_receipt";
+    public const string DataExportCreateOperation = "identity.data_request.create_export";
+    public const string DataErasureCreateOperation = "identity.data_request.create_erasure";
+    public const string DataRequestListOperation = "identity.data_request.list";
+    public const string DataRequestReadOperation = "identity.data_request.read";
+    public const string DataRequestCancelOperation = "identity.data_request.cancel";
+    public const string DataExportRevokeOperation = "identity.data_request.revoke_export";
+    public const string DataRequestReceiptOperation = "identity.data_request.read_receipt";
+    // ADR-0106 § 9: the retained own-scope native entry (OwnDataRequestEntry). The same prefix and no key; each is
+    // admitted only by the subject's own retained-scope witness, never by a Membership in the announced context.
+    public const string RetainedDataRequestScopesOperation = "identity.data_request.list_retained_scopes";
+    public const string RetainedDataRequestListOperation = "identity.data_request.list_retained";
+    public const string RetainedDataExportCreateOperation = "identity.data_request.create_retained_export";
+    public const string RetainedDataErasureCreateOperation = "identity.data_request.create_retained_erasure";
+    public const string RetainedAccountClosureCreateOperation = "identity.data_request.create_retained_closure";
+    public const string RetainedDataExportRevokeOperation = "identity.data_request.revoke_retained_export";
+    public const string RetainedDataRequestCancelOperation = "identity.data_request.cancel_retained";
+    public const string RetainedDataExportTicketOperation = "identity.data_request.mint_retained_export_ticket";
+    public const string RetainedDataExportChunkOperation = "identity.data_request.read_retained_export_chunk";
+    public const string RetainedDataRequestReceiptOperation = "identity.data_request.read_retained_receipt";
     public const string PublicSignInOperation = "identity.public_sign_in.read";
     /// <summary>Virtual Portal Public definition for the anonymous sign-in read; never a stored Role grant.</summary>
     public static PermissionDefinition PublicSignIn { get; } = new(PermissionScope.Tenant, "identity.public_sign_in.read");
@@ -60,6 +94,39 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<PrepareOrganizationInvitationEmailCommand>("identity.invitation.prepare_organization_email", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForTrusted<FinalizeTenantInvitationEmailCommand>("identity.invitation.tenant_email_submission", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForTrusted<FinalizeOrganizationInvitationEmailCommand>("identity.invitation.organization_email_submission", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<RunTenantDataExportCommand>("identity.data_request.fulfill_tenant_export", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<RunOrganizationDataExportCommand>("identity.data_request.fulfill_organization_export", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<PurgeTenantDataExportCommand>("identity.data_export.purge_tenant", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<PurgeOrganizationDataExportCommand>("identity.data_export.purge_organization", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<RunTenantDataErasureCommand>("identity.data_request.fulfill_tenant_erasure", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<RunOrganizationDataErasureCommand>("identity.data_request.fulfill_organization_erasure", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForOwnDataRequest<CreateOwnDataExportCommand>(OwnDataExportCreateOperation),
+        OperationPolicy.ForOwnDataRequest<CreateOwnDataErasureCommand>(OwnDataErasureCreateOperation),
+        OperationPolicy.ForOwnDataRequest<CreateOwnAccountClosureCommand>(OwnAccountClosureCreateOperation),
+        OperationPolicy.ForOwnDataRequest<ListOwnDataRequestsQuery>(OwnDataRequestListOperation),
+        OperationPolicy.ForOwnDataRequest<GetOwnDataRequestQuery>(OwnDataRequestReadOperation),
+        OperationPolicy.ForOwnDataRequest<CancelOwnDataRequestCommand>(OwnDataRequestCancelOperation),
+        OperationPolicy.ForOwnDataRequest<RevokeOwnDataExportCommand>(OwnDataExportRevokeOperation),
+        OperationPolicy.ForOwnDataRequest<MintOwnDataExportTicketCommand>(OwnDataExportTicketOperation),
+        OperationPolicy.ForOwnDataRequest<ReadOwnDataExportChunkCommand>(OwnDataExportChunkOperation),
+        OperationPolicy.ForOwnDataRequest<ReadOwnDataRequestReceiptQuery>(OwnDataRequestReceiptOperation),
+        OperationPolicy.ForOwnDataRequestEntry<ListRetainedDataRequestScopesQuery>(RetainedDataRequestScopesOperation),
+        OperationPolicy.ForOwnDataRequestEntry<ListRetainedDataRequestsQuery>(RetainedDataRequestListOperation),
+        OperationPolicy.ForOwnDataRequestEntry<CreateRetainedDataExportCommand>(RetainedDataExportCreateOperation),
+        OperationPolicy.ForOwnDataRequestEntry<CreateRetainedDataErasureCommand>(RetainedDataErasureCreateOperation),
+        OperationPolicy.ForOwnDataRequestEntry<CreateRetainedAccountClosureCommand>(RetainedAccountClosureCreateOperation),
+        OperationPolicy.ForOwnDataRequestEntry<RevokeRetainedDataExportCommand>(RetainedDataExportRevokeOperation),
+        OperationPolicy.ForOwnDataRequestEntry<CancelRetainedDataRequestCommand>(RetainedDataRequestCancelOperation),
+        OperationPolicy.ForOwnDataRequestEntry<MintRetainedDataExportTicketCommand>(RetainedDataExportTicketOperation),
+        OperationPolicy.ForOwnDataRequestEntry<ReadRetainedDataExportChunkCommand>(RetainedDataExportChunkOperation),
+        OperationPolicy.ForOwnDataRequestEntry<ReadRetainedDataRequestReceiptQuery>(RetainedDataRequestReceiptOperation),
+        OperationPolicy.ForProtected<CreateDataExportForSubjectCommand>(DataExportCreateOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<CreateDataErasureForSubjectCommand>(DataErasureCreateOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<ListDataRequestsQuery>(DataRequestListOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<GetDataRequestQuery>(DataRequestReadOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<CancelDataRequestCommand>(DataRequestCancelOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<RevokeDataExportCommand>(DataExportRevokeOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<ReadDataRequestReceiptQuery>(DataRequestReceiptOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<ListInvitationsQuery>("identity.invitation.list", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<GetInvitationQuery>("identity.invitation.read", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<ListInvitableRolesQuery>("identity.invitation.list_invitable_roles", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
@@ -128,6 +195,8 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<OperatorInitializeRoleCommand>("identity.operator.initialize_role", AuthorizationSourceKind.PlatformOperator),
         OperationPolicy.ForTrusted<OperatorCreateFirstAdminCommand>("identity.operator.create_first_admin", AuthorizationSourceKind.PlatformOperator),
         OperationPolicy.ForTrusted<OperatorRecoverAdminCommand>("identity.operator.recover_admin", AuthorizationSourceKind.PlatformOperator),
+        // ADR-0107 § 7: a closure's per-group fan-out, admitted per group by the operator's grant and nothing else.
+        OperationPolicy.ForTrusted<FanOutClosureCommand>("identity.operator.fan_out_closure", AuthorizationSourceKind.PlatformOperator),
     ];
 
     private static OperationPolicy Federation<TRequest>(string id) =>

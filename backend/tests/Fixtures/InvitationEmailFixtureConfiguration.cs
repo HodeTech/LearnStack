@@ -14,6 +14,8 @@ internal static class InvitationEmailFixtureConfiguration
         ["InvitationEmail:Smtp:Tls"] = "ImplicitTls",
         ["InvitationEmail:Smtp:Username"] = "synthetic-fixture",
         ["InvitationEmail:Smtp:Password"] = "synthetic-fixture",
+        // ADR-0107 § 4: the export key ring is checked at startup the same way.
+        ["DataExport:KeyRing"] = "{\"active\":\"test\",\"keys\":{\"test\":\"AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=\"}}",
     };
 
     internal static void AddTo(IWebHostBuilder builder)

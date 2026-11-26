@@ -277,7 +277,11 @@ public sealed partial class PersistenceConventionTests
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.FixedSeedIdentityCompletionReader::ReadAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedIdentityStageReader::HasNoRoleHistoryAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.FederationConnectionStore::ReadLiveAsync",
-                "LearnStack.Modules.Identity.Infrastructure.Persistence.FederationConnectionStore::Writable" }.Order(StringComparer.Ordinal), StringComparer.Ordinal)
+                "LearnStack.Modules.Identity.Infrastructure.Persistence.FederationConnectionStore::Writable",
+                // ADR-0106 § 4: the data-request adapters run on the request's own tenant owner after authorization.
+                "LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestStore::Admit",
+                "LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestReader::Admit",
+                "LearnStack.Modules.Identity.Infrastructure.DataRequests.DataExportTicketStore::Admit" }.Order(StringComparer.Ordinal), StringComparer.Ordinal)
             || reenrollments.Any(site => site.Instruction.OpCode != OpCodes.Call))
             errors.Add("Only the exact contextual graph, seed metadata/stage, member/Role, native admission and federation registry readers may reenroll the same tenant owner");
         return errors;

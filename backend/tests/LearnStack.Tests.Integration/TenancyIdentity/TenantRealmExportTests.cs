@@ -120,8 +120,19 @@ public sealed partial class TenantRealmExportTests
             ("federation browser flow", realm => Client(realm, "learnstack-federation-admin")["standardFlowEnabled"] = true),
             ("federation default scope", realm => Client(realm, "learnstack-federation-admin")["defaultClientScopes"]!.AsArray().Add("roles")),
             ("federation extra role", realm => FederationUser(realm)["clientRoles"]!["realm-management"]!.AsArray().Add("manage-users")),
-            ("federation extra scope role", realm => realm["clientScopeMappings"]!["realm-management"]![0]!["roles"]!.AsArray().Add("manage-users")),
+            ("federation extra scope role", realm => ScopeAllowance(realm, "learnstack-federation-admin")["roles"]!.AsArray().Add("manage-users")),
             ("federation password", realm => FederationUser(realm)["credentials"] = new JsonArray()),
+            ("missing account removal client", realm => realm["clients"]!.AsArray().Remove(Client(realm, "learnstack-account-removal"))),
+            ("literal account removal secret", realm => Client(realm, "learnstack-account-removal")["secret"] = "unowned-removal-source"),
+            ("account removal sharing the federation secret", realm => Client(realm, "learnstack-account-removal")["secret"] = "${KEYCLOAK_FEDERATION_ADMIN_SECRET}"),
+            ("account removal full scope", realm => Client(realm, "learnstack-account-removal")["fullScopeAllowed"] = true),
+            ("account removal browser flow", realm => Client(realm, "learnstack-account-removal")["standardFlowEnabled"] = true),
+            ("account removal default scope", realm => Client(realm, "learnstack-account-removal")["defaultClientScopes"]!.AsArray().Add("roles")),
+            ("account removal federation role", realm => ServiceUser(realm, "learnstack-account-removal")["clientRoles"]!["realm-management"]!.AsArray().Add("manage-identity-providers")),
+            ("account removal realm admin role", realm => ServiceUser(realm, "learnstack-account-removal")["clientRoles"]!["realm-management"]!.AsArray().Add("realm-admin")),
+            ("account removal extra scope role", realm => ScopeAllowance(realm, "learnstack-account-removal")["roles"]!.AsArray().Add("view-users")),
+            ("account removal password", realm => ServiceUser(realm, "learnstack-account-removal")["credentials"] = new JsonArray()),
+            ("federation holding the removal role", realm => ServiceUser(realm, "learnstack-federation-admin")["clientRoles"]!["realm-management"] = new JsonArray("manage-users")),
             ("enabled idp_link", realm => RequiredAction(realm, "idp_link")["enabled"] = true),
             ("missing stock required action", realm => realm["requiredActions"]!.AsArray().Remove(RequiredAction(realm, "UPDATE_PASSWORD"))),
             ("missing first broker flow", realm => realm["authenticationFlows"]!.AsArray().Remove(Flow(realm, "learnstack-first-broker-login"))),
@@ -432,26 +443,13 @@ public sealed partial class TenantRealmExportTests
     /// <summary>ADR-0099 § Realm invariants as the committed export declares them.</summary>
     private static void ValidateFederationDeclaration(JsonObject realm, Action<bool, string> require)
     {
-        var client = Client(realm, "learnstack-federation-admin");
-        require(client["enabled"]!.GetValue<bool>() && !client["publicClient"]!.GetValue<bool>() && !client["bearerOnly"]!.GetValue<bool>()
-            && client["serviceAccountsEnabled"]!.GetValue<bool>() && !client["standardFlowEnabled"]!.GetValue<bool>()
-            && !client["implicitFlowEnabled"]!.GetValue<bool>() && !client["directAccessGrantsEnabled"]!.GetValue<bool>()
-            && !client["fullScopeAllowed"]!.GetValue<bool>() && Strings(client["redirectUris"]).Length == 0
-            && Strings(client["webOrigins"]).Length == 0 && Strings(client["defaultClientScopes"]).Length == 0
-            && Strings(client["optionalClientScopes"]).Length == 0, "federation admin machine client modes");
-        require(Text(client["secret"]) == "${KEYCLOAK_FEDERATION_ADMIN_SECRET}", "federation secret placeholder only");
-        var mappers = client["protocolMappers"]!.AsArray();
-        require(mappers.Count == 1 && Text(mappers[0]?["protocolMapper"]) == "oidc-usermodel-client-role-mapper"
-            && Text(mappers[0]?["config"]?["usermodel.clientRoleMapping.clientId"]) == "realm-management"
-            && Text(mappers[0]?["config"]?["id.token.claim"]) == "false", "one admin-role emitter");
+        ValidateMachineClient(realm, "learnstack-federation-admin", "${KEYCLOAK_FEDERATION_ADMIN_SECRET}", "manage-identity-providers", require);
+        // ADR-0107 § 7: the closure's account-removal client has the same shape and its own, different, role.
+        ValidateMachineClient(realm, "learnstack-account-removal", "${KEYCLOAK_ACCOUNT_REMOVAL_SECRET}", "manage-users", require);
         var serviceAccounts = realm["users"]!.AsArray().Where(user => user?["serviceAccountClientId"] is not null).ToArray();
-        var user = FederationUser(realm);
-        require(serviceAccounts.Length == 1 && user["credentials"] is null && user["realmRoles"] is null
-            && user["clientRoles"]!.AsObject().Count == 1
-            && Strings(user["clientRoles"]!["realm-management"]).SequenceEqual(["manage-identity-providers"]), "manage-identity-providers only");
+        require(serviceAccounts.Length == 2, "exactly the federation and account-removal service accounts");
         var allowance = realm["clientScopeMappings"]!["realm-management"]!.AsArray();
-        require(allowance.Count == 1 && Text(allowance[0]?["client"]) == "learnstack-federation-admin"
-            && Strings(allowance[0]?["roles"]).SequenceEqual(["manage-identity-providers"]), "admin role scope only");
+        require(allowance.Count == 2, "exactly two admin role scope allowances");
         var actions = realm["requiredActions"]!.AsArray();
         require(actions.Count == 14 && actions.All(action => Text(action?["alias"]) == Text(action?["providerId"])), "complete stock required actions");
         require(!RequiredAction(realm, "idp_link")["enabled"]!.GetValue<bool>(), "idp_link application action disabled");
@@ -487,8 +485,34 @@ public sealed partial class TenantRealmExportTests
             "idp ID-token claim from the session note only");
     }
 
-    private static JsonObject FederationUser(JsonObject realm) => realm["users"]!.AsArray()
-        .Single(user => Text(user?["serviceAccountClientId"]) == "learnstack-federation-admin")!.AsObject();
+    private static JsonObject FederationUser(JsonObject realm) => ServiceUser(realm, "learnstack-federation-admin");
+    private static JsonObject ServiceUser(JsonObject realm, string clientId) => realm["users"]!.AsArray()
+        .Single(user => Text(user?["serviceAccountClientId"]) == clientId)!.AsObject();
+    /// <summary>One confined realm-management service client: machine modes, a placeholder secret, one role emitter and one role.</summary>
+    private static void ValidateMachineClient(JsonObject realm, string clientId, string placeholder, string role, Action<bool, string> require)
+    {
+        var client = Client(realm, clientId);
+        require(client["enabled"]!.GetValue<bool>() && !client["publicClient"]!.GetValue<bool>() && !client["bearerOnly"]!.GetValue<bool>()
+            && client["serviceAccountsEnabled"]!.GetValue<bool>() && !client["standardFlowEnabled"]!.GetValue<bool>()
+            && !client["implicitFlowEnabled"]!.GetValue<bool>() && !client["directAccessGrantsEnabled"]!.GetValue<bool>()
+            && !client["fullScopeAllowed"]!.GetValue<bool>() && Strings(client["redirectUris"]).Length == 0
+            && Strings(client["webOrigins"]).Length == 0 && Strings(client["defaultClientScopes"]).Length == 0
+            && Strings(client["optionalClientScopes"]).Length == 0, clientId + " machine client modes");
+        require(Text(client["secret"]) == placeholder, clientId + " secret placeholder only");
+        var mappers = client["protocolMappers"]!.AsArray();
+        require(mappers.Count == 1 && Text(mappers[0]?["protocolMapper"]) == "oidc-usermodel-client-role-mapper"
+            && Text(mappers[0]?["config"]?["usermodel.clientRoleMapping.clientId"]) == "realm-management"
+            && Text(mappers[0]?["config"]?["id.token.claim"]) == "false", clientId + " one admin-role emitter");
+        var user = ServiceUser(realm, clientId);
+        require(user["credentials"] is null && user["realmRoles"] is null && user["clientRoles"]!.AsObject().Count == 1
+            && Strings(user["clientRoles"]!["realm-management"]).SequenceEqual([role]), clientId + " holds " + role + " only");
+        var allowance = ScopeAllowance(realm, clientId);
+        require(Strings(allowance["roles"]).SequenceEqual([role]), clientId + " admin role scope only");
+    }
+
+    private static JsonObject ScopeAllowance(JsonObject realm, string clientId) => realm["clientScopeMappings"]!["realm-management"]!.AsArray()
+        .Single(entry => Text(entry?["client"]) == clientId)!.AsObject();
+
     private static JsonObject RequiredAction(JsonObject realm, string alias) => realm["requiredActions"]!.AsArray()
         .Single(action => Text(action?["alias"]) == alias)!.AsObject();
     private static JsonObject Flow(JsonObject realm, string alias) => realm["authenticationFlows"]!.AsArray()

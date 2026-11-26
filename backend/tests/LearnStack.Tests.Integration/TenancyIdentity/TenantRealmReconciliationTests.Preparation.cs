@@ -38,7 +38,7 @@ public sealed partial class TenantRealmReconciliationTests
             var first = await KeycloakReconciliationDriver.RunAsync(fixture);
             first.Success.Should().BeTrue("the automatic historical path reports {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(39, "one preparation, sixteen prior stock-upgrade writes, one event-policy PUT and the additional native scope; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
+            first.Mutations.Should().Be(44, "one preparation, sixteen prior stock-upgrade writes, one event-policy PUT and the additional native scope; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment), plus the five ADR-0107 § 7 writes that create the account-removal client (the client, its automatic scope detach, its default-role detach, its role grant and its scope allowance)");
             AssertPreparationProfile(expectedProfile, await admin.GetAsync("users/profile"));
             foreach (var identity in SeedData.IdentityUsers) await AssertStoredIdentityAsync(admin, identity);
             foreach (var (username, original) in originalUsers)
@@ -54,7 +54,8 @@ public sealed partial class TenantRealmReconciliationTests
             var priorClients = clientsBefore.EnumerateArray().Select(Id).ToHashSet(StringComparer.Ordinal);
             priorClients.IsSubsetOf(clientsAfter.EnumerateArray().Select(Id)).Should().BeTrue("all existing clients retain their provider IDs");
             clientsAfter.EnumerateArray().Where(client => !priorClients.Contains(Id(client))).Select(client => client.GetProperty("clientId").GetString())
-                .Should().Equal(["learnstack-federation-admin"], "the only new client is ADR-0099's federation admin client");
+                .Order(StringComparer.Ordinal).Should().Equal(["learnstack-account-removal", "learnstack-federation-admin"],
+                    "the only new clients are ADR-0099's federation admin client and ADR-0107's account-removal client");
             foreach (var (path, before) in scopesBefore)
                 AssertSame(before, await admin.GetAsync(path), "preparation and normalization preserve each preexisting global scope definition");
             AssertSame(apiSecret, await admin.GetAsync("clients/" + Id(api) + "/client-secret"), "the API credential survives the automatic path");
@@ -148,7 +149,7 @@ public sealed partial class TenantRealmReconciliationTests
 
             var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
             resumed.Success.Should().BeTrue("an explicit fresh invocation reports {0}/{1}", resumed.Stage, resumed.Reason);
-            resumed.Mutations.Should().Be(38, "the durable preparation is reused; sixteen prior stock writes, one event-policy PUT and the additional native scope remain; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
+            resumed.Mutations.Should().Be(43, "the durable preparation is reused; sixteen prior stock writes, one event-policy PUT and the additional native scope remain; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment), plus the five ADR-0107 § 7 writes that create the account-removal client (the client, its automatic scope detach, its default-role detach, its role grant and its scope allowance)");
             resumed.PreparationDispatched.Should().BeFalse();
             var completed = await KeycloakReconciliationDriver.RunAsync(fixture);
             completed.Success.Should().BeTrue();
@@ -184,8 +185,8 @@ public sealed partial class TenantRealmReconciliationTests
             var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
             resumed.Success.Should().BeTrue("the separate ordinary plan reports {0}/{1}", resumed.Stage, resumed.Reason);
             resumed.PreparationDispatched.Should().BeFalse();
-            resumed.Mutations.Should().Be(39, "sixteen prior stock writes, separate profile normalization, one event-policy PUT and the additional native scope; "
-                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
+            resumed.Mutations.Should().Be(44, "sixteen prior stock writes, separate profile normalization, one event-policy PUT and the additional native scope; "
+                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment), plus the five ADR-0107 § 7 writes that create the account-removal client (the client, its automatic scope detach, its default-role detach, its role grant and its scope allowance)");
             var expectedFinal = expectedPreparation.DeepClone();
             var definitions = expectedFinal["attributes"]!.AsArray();
             var index = definitions.IndexOf(definitions.Single(value => value!["name"]!.GetValue<string>() == "user_id"));

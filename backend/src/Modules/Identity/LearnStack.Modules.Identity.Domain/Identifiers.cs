@@ -27,3 +27,12 @@ public readonly partial record struct FederationOperationId : IStronglyTypedId<G
 
 [ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
 public readonly partial record struct FederationTestAttemptId : IStronglyTypedId<Guid>;
+
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct DataSubjectRequestId : IStronglyTypedId<Guid>;
+
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct DataExportArtifactId : IStronglyTypedId<Guid>;
+
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct DataExportTicketId : IStronglyTypedId<Guid>;

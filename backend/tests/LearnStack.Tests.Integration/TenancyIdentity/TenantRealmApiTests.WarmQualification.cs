@@ -93,8 +93,8 @@ public sealed partial class TenantRealmApiTests
             var first = await KeycloakReconciliationDriver.RunAsync(warm);
             first.Success.Should().BeTrue("closed historical reconciliation outcome: {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(39, "one preparation, sixteen prior ordinary writes, one event-policy PUT and the additional native scope creation; "
-                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
+            first.Mutations.Should().Be(44, "one preparation, sixteen prior ordinary writes, one event-policy PUT and the additional native scope creation; "
+                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment), plus the five ADR-0107 § 7 writes that create the account-removal client (the client, its automatic scope detach, its default-role detach, its role grant and its scope allowance)");
             output.WriteLine("Historical journey stage: automatic reconciliation completed.");
             var accountsAfter = await WarmAccountsAsync(admin, usernames);
             WarmSame(expectedProfile, WarmNode(await admin.GetAsync("users/profile"))).Should().BeTrue(
@@ -330,7 +330,8 @@ public sealed partial class TenantRealmApiTests
                 oldIds.IsSubsetOf(currentIds).Should().BeTrue("no preexisting client or scope is deleted or recreated");
                 if (path == "clients")
                     current.EnumerateArray().Where(client => !oldIds.Contains(WarmId(client))).Select(client => client.GetProperty("clientId").GetString())
-                        .Should().Equal(["learnstack-federation-admin"], "the only new client is ADR-0099's federation admin client");
+                        .Order(StringComparer.Ordinal).Should().Equal(["learnstack-account-removal", "learnstack-federation-admin"],
+                    "the only new clients are ADR-0099's federation admin client and ADR-0107's account-removal client");
                 else current.EnumerateArray().Where(scope => !oldIds.Contains(WarmId(scope)))
                     .Select(scope => scope.GetProperty("name").GetString()).Order(StringComparer.Ordinal)
                     .Should().Equal(desired["clientScopes"]!.AsArray().Select(scope => scope!["name"]!.GetValue<string>())

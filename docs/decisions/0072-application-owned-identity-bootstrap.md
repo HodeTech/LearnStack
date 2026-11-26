@@ -412,3 +412,7 @@ development tool, and the Seeder refuses to run outside Development.
 
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.
+
+### Amendment 8 — Closure writer, fence meaning and Closing irreversibility (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) name the separately admitted closure owner this record defers to P03-10. The platform session, as a human-operator act, moves a User Active to Closing and Closing to Closed by a direct UPDATE of `status` and `provider_subject` only, under one trigger exception that requires the exclusive User fence and every participant tenant fence held on that connection; the `users` policy and the application role are unchanged. "Retaining the fences through completion" means through the transaction that makes the User nonadmitting. Closing is irreversible and Closed removes the raw provider subject while the key and actor tombstone stay. A closed key never reappears and closure refunds nothing, as before. The Decision, Status, Date and every other section of this record are unchanged.

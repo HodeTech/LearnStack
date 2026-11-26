@@ -86,6 +86,11 @@ integration tests run against.
 - Subscription placeholder.
 - Coupon / discount placeholder.
 - Manual payment approval.
+- The first `IDataRequestHoldSource` implementation
+  ([ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) § 7): the
+  first aggregate here that can carry a hold (a payment dispute or a legal hold) reports
+  it, so an erasure or a global closure of that person stops with `blocked_hold` until
+  it clears. Phase 03 ships the port with the default `NoHoldSource`.
 
 ### Integrations
 

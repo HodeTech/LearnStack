@@ -81,6 +81,31 @@ export const NATIVE_OPERATION_KINDS = Object.freeze([
   'enableFederation',
   'deleteFederation',
   'resumeFederationOperation',
+  // ADR-0106 § 9: the person's own data requests in the session group, then the retained-entry set.
+  'listOwnDataRequests',
+  'createOwnDataExport',
+  'createOwnDataErasure',
+  'createOwnAccountClosure',
+  'cancelOwnDataRequest',
+  'revokeOwnDataExport',
+  'mintOwnDataExportTicket',
+  'readOwnDataExportChunk',
+  'listRetainedDataRequestScopes',
+  'listRetainedDataRequests',
+  'createRetainedDataExport',
+  'createRetainedDataErasure',
+  'createRetainedAccountClosure',
+  'cancelRetainedDataRequest',
+  'revokeRetainedDataExport',
+  'mintRetainedDataExportTicket',
+  'readRetainedDataExportChunk',
+  // ADR-0106 §§ 3, 13: an administrator's requests in the session group; no ticket or chunk kind.
+  'listDataRequests',
+  'getDataRequest',
+  'createDataExportForSubject',
+  'createDataErasureForSubject',
+  'cancelDataRequest',
+  'revokeDataExport',
 ]);
 const OPERATION_SET = new Set(NATIVE_OPERATION_KINDS);
 

@@ -4,14 +4,34 @@ using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
 using Npgsql;
 using NpgsqlTypes;
 
 namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 
-/// <summary>One uncached statement over Tenancy's own tables, on the caller's announced app transaction.</summary>
+/// <summary>
+/// One uncached statement over Tenancy's own tables, on the caller's announced app transaction, or for many scopes at once
+/// on an entered platform scope's transaction.
+/// </summary>
 public sealed class IdentityScopeLifecycleReader(IUnitOfWork unit) : IIdentityScopeLifecycleReader
 {
+    // The platform form: the same four facts per scope, one row per scope in the scopes' order. The tenant-wide scope travels
+    // as the nil identifier, which no organization has, so it joins no organization and its facts are false as above. The
+    // tenant and organization rows are read by their primary keys.
+    private const string PlatformLifecycleSql = """
+        SELECT scope.position,
+               t.id IS NOT NULL AND t.deleted_at IS NULL,
+               t.id IS NOT NULL AND t.deleted_at IS NULL AND t.status IN ('Trial', 'Active'),
+               o.id IS NOT NULL,
+               o.id IS NOT NULL AND o.deleted_at IS NULL AND o.status = 'Active'
+        FROM unnest(@tenants::uuid[], @organizations::uuid[]) WITH ORDINALITY AS scope(tenant_id, organization_id, position)
+        LEFT JOIN public.tenants AS t ON t.id = scope.tenant_id
+        LEFT JOIN public.organizations AS o
+          ON o.tenant_id = t.id AND o.id = NULLIF(scope.organization_id, '00000000-0000-0000-0000-000000000000'::uuid)
+        ORDER BY scope.position
+        """;
+
     private const string LifecycleSql = """
         SELECT t.id IS NOT NULL AND t.deleted_at IS NULL,
                t.id IS NOT NULL AND t.deleted_at IS NULL AND t.status IN ('Trial', 'Active'),
@@ -98,6 +118,38 @@ public sealed class IdentityScopeLifecycleReader(IUnitOfWork unit) : IIdentitySc
         cancellationToken.ThrowIfCancellationRequested();
         if (failed || facts is null) throw new IdentityScopeLifecycleReadException(false);
         return facts;
+    }
+
+    public async Task<IReadOnlyList<IdentityScopeLifecycle>> ReadOnPlatformScopeAsync(IPlatformAdminScopeHandle handle,
+        IReadOnlyList<IdentityLifecycleScope> scopes, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(handle);
+        ArgumentNullException.ThrowIfNull(scopes);
+        if (scopes.Count is 0 or > IIdentityScopeLifecycleReader.MaximumPlatformScopes)
+            throw new ArgumentException("A platform lifecycle read names between one and the bounded number of scopes.", nameof(scopes));
+
+        var tenants = new Guid[scopes.Count];
+        var organizations = new Guid[scopes.Count];
+        for (var index = 0; index < scopes.Count; index++)
+        {
+            var scope = scopes[index] ?? throw new ArgumentException("A platform lifecycle read names no empty scope.", nameof(scopes));
+            if (!StronglyTypedId.IsAssigned(scope.TenantId) || scope.TenantId == TenantId.PlatformSentinel
+                || scope.OrganizationId is { } unassigned && !StronglyTypedId.IsAssigned(unassigned))
+                throw new ArgumentException("A platform lifecycle read names real tenants and assigned organizations.", nameof(scopes));
+            tenants[index] = scope.TenantId.Value;
+            organizations[index] = scope.OrganizationId?.Value ?? Guid.Empty;
+        }
+
+        // The handle's own statement facade: no announcement, and a failed statement leaves the scope to be abandoned by
+        // its owner, who decides whether the fault is retryable.
+        var rows = await handle.QueryAsync(PlatformLifecycleSql,
+            [new PlatformSqlParameter("tenants", tenants), new PlatformSqlParameter("organizations", organizations)],
+            reader => (Position: reader.GetInt64(0), Facts: new IdentityScopeLifecycle(
+                reader.GetBoolean(1), reader.GetBoolean(2), reader.GetBoolean(3), reader.GetBoolean(4))),
+            cancellationToken);
+        if (rows.Count != scopes.Count || rows.Where((row, index) => row.Position != index + 1).Any())
+            throw new InfrastructureException("Identity scope lifecycle is unavailable.");
+        return [.. rows.Select(row => row.Facts)];
     }
 
     private static async ValueTask<bool> TryDisposeAsync(IAsyncDisposable? resource)

@@ -304,3 +304,76 @@
   padding: 0;
   border: 0;
 }
+
+/* ADR-0106 data-request administration: 44 px targets, status glyphs and a 320 px reflow.
+   A link's content is one element: text beside an element in a flex container loses its space. */
+.auth-data-requests button,
+.auth-data-requests :is(p, nav, dd, h3, li) > a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+}
+/* A summary keeps display: list-item, which alone draws its open/closed marker. */
+.auth-data-requests summary {
+  display: list-item;
+  min-block-size: 44px;
+  padding-block: 0.5rem;
+  align-content: center;
+}
+.auth-data-request-status {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-weight: 600;
+}
+.auth-data-request-status svg {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+.auth-data-request-facts {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: 0.25rem 1rem;
+}
+.auth-data-request-facts dd {
+  margin: 0;
+}
+.auth-data-request-confirm {
+  border: 2px solid currentColor;
+  padding: 0.5rem 1rem;
+  margin-block: 1rem;
+}
+.auth-data-request-confirm legend {
+  font-weight: 600;
+  padding-inline: 0.25rem;
+}
+.auth-data-request-confirm label {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  min-block-size: 44px;
+  padding-block: 0.5rem;
+  cursor: pointer;
+}
+.auth-shell .auth-data-request-confirm input[type='checkbox'] {
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  margin: 0.1rem 0 0;
+}
+@media (max-width: 30rem) {
+  .auth-data-request-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .auth-data-request-facts dd {
+    margin-block-end: 0.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-data-requests * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

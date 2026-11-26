@@ -7,7 +7,8 @@ namespace LearnStack.Modules.Identity.Application.Authorization;
 
 /// <summary>One fresh committed-state evaluation per act; no fact or permission decision cache.</summary>
 public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReader> reader, IOperationPolicyCatalog catalog,
-    IEnumerable<IInvitationEntryScopeSource>? invitationSources = null, IEnumerable<IConsentSubjectScopeSource>? consentSources = null)
+    IEnumerable<IInvitationEntryScopeSource>? invitationSources = null, IEnumerable<IConsentSubjectScopeSource>? consentSources = null,
+    IEnumerable<IOwnDataRequestScopeSource>? dataRequestSources = null)
     : ProtectedOperationDecision.MintingSource, IProtectedOperationAuthorizer
 {
     public async Task<ProtectedOperationDecision> AuthorizeAsync(OperationInvocation invocation, OperationPolicy policy,
@@ -19,7 +20,8 @@ public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReade
         cancellationToken.ThrowIfCancellationRequested();
         if (invocation.Candidate is not { } original || invocation.Policy.Kind is not
             (OperationPolicyKind.AccountRead or OperationPolicyKind.Protected or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry
-                or OperationPolicyKind.OwnFieldConsentGrant or OperationPolicyKind.OwnConsentEntry))
+                or OperationPolicyKind.OwnFieldConsentGrant or OperationPolicyKind.OwnConsentEntry
+                or OperationPolicyKind.OwnDataRequest or OperationPolicyKind.OwnDataRequestEntry))
             throw new ArgumentException("Protected operation invocation provenance is invalid.", nameof(invocation));
         if (!ReferenceEquals(original, candidate))
             return ForDecision(invocation, original, ProtectedOperationOutcome.NotCovered);
@@ -43,6 +45,17 @@ public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReade
                 ? ForDecision(invocation, candidate, ProtectedOperationOutcome.Allowed, consentWitness: witnesses[0])
                 : ForDecision(invocation, candidate, ProtectedOperationOutcome.NotCovered);
         }
+        if (policy.Kind == OperationPolicyKind.OwnDataRequestEntry)
+        {
+            // ADR-0106 § 9: the retained own scope is the subject's own witness, never a Membership read, so a
+            // Suspended person and a person whose Membership is gone are served; exactly one live source answers.
+            var witnesses = (dataRequestSources ?? []).Select(source => source.ForInvocation(invocation))
+                .Where(witness => witness is not null).Cast<OwnDataRequestScopeWitness>().Take(2).ToArray();
+            return witnesses.Length == 1 && witnesses[0].IsActive && ReferenceEquals(witnesses[0].Invocation, invocation)
+                && witnesses[0].Actor == candidate.Actor && candidate.SourceKind == AuthorizationSourceKind.Http
+                ? ForDecision(invocation, candidate, ProtectedOperationOutcome.Allowed, dataRequestWitness: witnesses[0])
+                : ForDecision(invocation, candidate, ProtectedOperationOutcome.NotCovered);
+        }
         var facts = await reader().ReadAsync(candidate, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (!invocation.IsActive || !candidate.IsActive)
@@ -63,6 +76,7 @@ public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReade
         && catalog.TryGet(policy.RequestType, out var registered) && ReferenceEquals(registered, policy)
         && policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry
             or OperationPolicyKind.OwnFieldConsentGrant or OperationPolicyKind.OwnConsentEntry
+            or OperationPolicyKind.OwnDataRequest or OperationPolicyKind.OwnDataRequestEntry
         && invocation.Context.IsResolved && invocation.Context.UserId == candidate.Actor
         && candidate.Actor != UserId.SystemActor && candidate.TenantId != TenantId.PlatformSentinel
         && invocation.Actor == candidate.Actor && invocation.TenantId == candidate.TenantId

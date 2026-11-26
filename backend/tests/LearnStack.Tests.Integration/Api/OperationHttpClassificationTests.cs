@@ -19,6 +19,7 @@ using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
@@ -120,6 +121,31 @@ public sealed class OperationHttpClassificationTests
         new(typeof(ConsentSubjectController), "Withdraw", "WithdrawOwnMembershipFieldConsent", "POST", "tenancy/membership-field-consents/withdrawals", typeof(WithdrawOwnMembershipFieldConsentCommand), "tenancy.membership_field_consent.withdraw", Protected: ProtectedAdministrationOperation.WithdrawOwnFieldConsent),
         new(typeof(OwnFieldConsentController), "Current", "GetOwnMembershipFieldConsent", "GET", "tenancy/membership-field-consents/own", typeof(GetOwnMembershipFieldConsentQuery), "tenancy.membership_field_consent.get_own"),
         new(typeof(OwnFieldConsentController), "Grant", "GrantOwnMembershipFieldConsent", "POST", "tenancy/membership-field-consents/grants", typeof(GrantOwnMembershipFieldConsentCommand), "tenancy.membership_field_consent.grant", Protected: ProtectedAdministrationOperation.GrantOwnFieldConsent),
+        new(typeof(OwnDataRequestsController), "Create", "CreateOwnDataExport", "POST", "identity/me/data-requests/exports", typeof(CreateOwnDataExportCommand), "identity.data_request.create_own_export", Protected: ProtectedAdministrationOperation.CreateOwnDataExport),
+        new(typeof(OwnDataRequestsController), "CreateErasure", "CreateOwnDataErasure", "POST", "identity/me/data-requests/erasures", typeof(CreateOwnDataErasureCommand), "identity.data_request.create_own_erasure", Protected: ProtectedAdministrationOperation.CreateOwnDataErasure),
+        new(typeof(OwnDataRequestsController), "CreateClosure", "CreateOwnAccountClosure", "POST", "identity/me/data-requests/closures", typeof(CreateOwnAccountClosureCommand), "identity.data_request.create_own_closure", Protected: ProtectedAdministrationOperation.CreateOwnAccountClosure),
+        new(typeof(OwnDataRequestsController), "List", "ListOwnDataRequests", "GET", "identity/me/data-requests", typeof(ListOwnDataRequestsQuery), "identity.data_request.list_own"),
+        new(typeof(OwnDataRequestsController), "Get", "GetOwnDataRequest", "GET", "identity/me/data-requests/{id}", typeof(GetOwnDataRequestQuery), "identity.data_request.read_own"),
+        new(typeof(OwnDataRequestsController), "Cancel", "CancelOwnDataRequest", "POST", "identity/me/data-requests/{id}/cancellations", typeof(CancelOwnDataRequestCommand), "identity.data_request.cancel_own", Protected: ProtectedAdministrationOperation.CancelOwnDataRequest),
+        new(typeof(OwnDataRequestsController), "Revoke", "RevokeOwnDataExport", "POST", "identity/me/data-requests/{id}/artifact/revocations", typeof(RevokeOwnDataExportCommand), "identity.data_request.revoke_own_export", Protected: ProtectedAdministrationOperation.RevokeOwnDataExport),
+        new(typeof(OwnDataExportTicketsController), "MintTicket", "MintOwnDataExportTicket", "POST", "identity/me/data-requests/{id}/artifact/tickets", typeof(MintOwnDataExportTicketCommand), "identity.data_request.mint_export_ticket"),
+        new(typeof(OwnDataExportChunksController), "ReadChunk", "ReadOwnDataExportChunk", "POST", "identity/me/data-requests/{id}/artifact/chunks", typeof(ReadOwnDataExportChunkCommand), "identity.data_request.read_export_chunk"),
+        new(typeof(DataRequestsController), "Create", "CreateDataExportForSubject", "POST", "identity/data-requests/exports", typeof(CreateDataExportForSubjectCommand), "identity.data_request.create_export", Protected: ProtectedAdministrationOperation.CreateDataExportForSubject),
+        new(typeof(DataRequestsController), "CreateErasure", "CreateDataErasureForSubject", "POST", "identity/data-requests/erasures", typeof(CreateDataErasureForSubjectCommand), "identity.data_request.create_erasure", Protected: ProtectedAdministrationOperation.CreateDataErasureForSubject),
+        new(typeof(DataRequestsController), "List", "ListDataRequests", "GET", "identity/data-requests", typeof(ListDataRequestsQuery), "identity.data_request.list"),
+        new(typeof(DataRequestsController), "Get", "GetDataRequest", "GET", "identity/data-requests/{id}", typeof(GetDataRequestQuery), "identity.data_request.read"),
+        new(typeof(DataRequestsController), "Cancel", "CancelDataRequest", "POST", "identity/data-requests/{id}/cancellations", typeof(CancelDataRequestCommand), "identity.data_request.cancel", Protected: ProtectedAdministrationOperation.CancelDataRequest),
+        new(typeof(DataRequestsController), "Revoke", "RevokeDataExport", "POST", "identity/data-requests/{id}/artifact/revocations", typeof(RevokeDataExportCommand), "identity.data_request.revoke_export", Protected: ProtectedAdministrationOperation.RevokeDataExport),
+        // ADR-0106 § 9: the retained own-scope native entry.
+        new(typeof(DataRequestEntryController), "Scopes", "ListRetainedDataRequestScopes", "GET", "identity/data-request-entry/scopes", typeof(ListRetainedDataRequestScopesQuery), "identity.data_request.list_retained_scopes"),
+        new(typeof(DataRequestEntryController), "Requests", "ListRetainedDataRequests", "GET", "identity/data-request-entry/requests", typeof(ListRetainedDataRequestsQuery), "identity.data_request.list_retained"),
+        new(typeof(DataRequestEntryController), "CreateExport", "CreateRetainedDataExport", "POST", "identity/data-request-entry/exports", typeof(CreateRetainedDataExportCommand), "identity.data_request.create_retained_export", Protected: ProtectedAdministrationOperation.CreateRetainedDataExport),
+        new(typeof(DataRequestEntryController), "CreateErasure", "CreateRetainedDataErasure", "POST", "identity/data-request-entry/erasures", typeof(CreateRetainedDataErasureCommand), "identity.data_request.create_retained_erasure", Protected: ProtectedAdministrationOperation.CreateRetainedDataErasure),
+        new(typeof(DataRequestEntryController), "CreateClosure", "CreateRetainedAccountClosure", "POST", "identity/data-request-entry/closures", typeof(CreateRetainedAccountClosureCommand), "identity.data_request.create_retained_closure", Protected: ProtectedAdministrationOperation.CreateRetainedAccountClosure),
+        new(typeof(DataRequestEntryController), "Cancel", "CancelRetainedDataRequest", "POST", "identity/data-request-entry/cancellations", typeof(CancelRetainedDataRequestCommand), "identity.data_request.cancel_retained", Protected: ProtectedAdministrationOperation.CancelRetainedDataRequest),
+        new(typeof(DataRequestEntryController), "RevokeExport", "RevokeRetainedDataExport", "POST", "identity/data-request-entry/revocations", typeof(RevokeRetainedDataExportCommand), "identity.data_request.revoke_retained_export", Protected: ProtectedAdministrationOperation.RevokeRetainedDataExport),
+        new(typeof(DataRequestEntryController), "MintTicket", "MintRetainedDataExportTicket", "POST", "identity/data-request-entry/tickets", typeof(MintRetainedDataExportTicketCommand), "identity.data_request.mint_retained_export_ticket"),
+        new(typeof(DataRequestEntryController), "ReadChunk", "ReadRetainedDataExportChunk", "POST", "identity/data-request-entry/chunks", typeof(ReadRetainedDataExportChunkCommand), "identity.data_request.read_retained_export_chunk"),
     ];
 
     [Fact]
@@ -161,10 +187,10 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var catalog = Catalog();
         var classifier = new OperationHttpClassifier(catalog);
-        Assert.Equal(72, ExpectedActions.Length);
-        Assert.Equal(23, ExpectedActions.Count(expected => expected.Protected is not null));
+        Assert.Equal(96, ExpectedActions.Length);
+        Assert.Equal(37, ExpectedActions.Count(expected => expected.Protected is not null));
         var actualActions = endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null).ToArray();
-        Assert.Equal(72, actualActions.Length);
+        Assert.Equal(96, actualActions.Length);
         Assert.Equal(ExpectedActions.Select(expected => expected.Name).Order(StringComparer.Ordinal), actualActions
             .Select(endpoint => endpoint.Metadata.GetRequiredMetadata<IEndpointNameMetadata>().EndpointName).Order(StringComparer.Ordinal));
         foreach (var endpoint in endpoints)
@@ -301,7 +327,7 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var classifier = new OperationHttpClassifier(Catalog());
         var protectedActions = ExpectedActions.Where(expected => expected.Protected is not null).ToArray();
-        Assert.Equal(23, protectedActions.Length);
+        Assert.Equal(37, protectedActions.Length);
         foreach (var expected in protectedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);
@@ -330,7 +356,7 @@ public sealed class OperationHttpClassificationTests
             Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
         }
         var unkeyedActions = ExpectedActions.Where(expected => expected.Protected is null).ToArray();
-        Assert.Equal(49, unkeyedActions.Length);
+        Assert.Equal(59, unkeyedActions.Length);
         foreach (var expected in unkeyedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);

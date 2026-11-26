@@ -5,7 +5,10 @@ import type { OwnMembershipProfile } from '@learnstack/sdk/administration-server
 import type { VerifiedLogoutToken } from './backchannel-contract.js';
 import { BackchannelState, matchesProviderLogout } from './backchannel-state.js';
 import type { ProviderLogoutTarget } from './backchannel-state.js';
-import type { NativeConsentResponseLease } from './consent-response-contract.js';
+import type {
+  NativeConsentResponseLease,
+  NativeDataRequestResponseLease,
+} from './consent-response-contract.js';
 import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
 import { FEDERATION_ALIAS } from './federation-alias.js';
@@ -18,7 +21,7 @@ import type {
   InvitationCommand,
 } from './invitation-session.js';
 import { NativeApiError } from './native-contract.js';
-import type { NativeScope, NativeSelf, SelfContexts } from './native-contract.js';
+import type { NativeBinding, NativeScope, NativeSelf, SelfContexts } from './native-contract.js';
 import type {
   NativeInvitationInspection,
   NativeInvitationResult,
@@ -27,7 +30,9 @@ import { NativeInvitationError } from './native-invitation-contract.js';
 import type {
   NativeOperation,
   NativeOperationResult,
+  OwnDataRequestOperation,
   RetainedConsentOperation,
+  RetainedDataRequestOperation,
 } from './native-operation-contract.js';
 import { nativeContextPage } from './native-session-client.js';
 import type { NativeEntrySnapshot, NativePageSnapshot, ScopeChoices } from './page-contract.js';
@@ -47,6 +52,7 @@ import type {
   FederationTestOutcome,
   AccountWitness,
   BffSessionStore,
+  DataRequestRetention,
   LoginCompletion,
   LoginStart,
   EntryProjection,
@@ -359,7 +365,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       | 'invitations'
       | 'custom_fields'
       | 'custom_revisions'
-      | 'consent_history',
+      | 'consent_history'
+      | 'data_requests'
+      | 'data_request_scopes'
+      | 'group_data_requests',
   ) {
     return { ...this.#cursorBinding(entry), purpose };
   }
@@ -371,7 +380,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       | 'invitations'
       | 'custom_fields'
       | 'custom_revisions'
-      | 'consent_history',
+      | 'consent_history'
+      | 'data_requests'
+      | 'data_request_scopes'
+      | 'group_data_requests',
     cursor: string,
   ) {
     entry.pageCursorKey ??= randomBytes(32);
@@ -385,7 +397,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       | 'invitations'
       | 'custom_fields'
       | 'custom_revisions'
-      | 'consent_history',
+      | 'consent_history'
+      | 'data_requests'
+      | 'data_request_scopes'
+      | 'group_data_requests',
     cursor: string | undefined,
   ) {
     if (cursor === undefined) return undefined;
@@ -514,7 +529,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
                     ? 'custom_fields'
                     : plan.kind === 'custom_field'
                       ? 'custom_revisions'
-                      : 'members',
+                      : plan.kind === 'data_requests'
+                        ? 'group_data_requests'
+                        : 'members',
                 plan.cursor,
               )
             : undefined;
@@ -720,7 +737,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
                   ? 'custom_fields'
                   : plan!.kind === 'custom_field'
                     ? 'custom_revisions'
-                    : 'members',
+                    : plan!.kind === 'data_requests'
+                      ? 'group_data_requests'
+                      : 'members',
               cursor,
             ),
           this.#dependencies.federationIssuer,
@@ -2383,6 +2402,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       'getOwnFieldConsent',
       'listOwnConsentScopes',
       'listOwnConsentHistory',
+      'listOwnDataRequests',
     ].includes(captured.kind);
     if (!read && !bffSecretEquals(csrf, entry.csrf)) throw new BffSessionError('csrf');
     return this.#bounded(entry, signal, async (current) => {
@@ -2431,7 +2451,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#checkSource(binding.host, source);
     const owner = this.#findEntry(binding);
     this.#entryProof(owner, csrf);
-    if (!this.#dependencies.retainedConsent) throw new BffSessionError('configuration');
+    const retained = this.#dependencies.retainedConsent;
+    if (!retained) throw new BffSessionError('configuration');
     let captured: RetainedConsentOperation;
     try {
       const raw = JSON.stringify(operation);
@@ -2447,6 +2468,26 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     } catch {
       throw new BffSessionError('configuration');
     }
+    return this.#retained(owner, binding, source, signal, (token, native, current) =>
+      retained(token, native, captured, current),
+    );
+  }
+
+  /**
+   * ADR-0106 § 9: the retained entry's one shared call. The entry owner's credential, refreshed under ADR-0099's
+   * host binding when it nears expiry, performs exactly one closed operation and must still be the owner's after it.
+   */
+  async #retained(
+    owner: Owner,
+    binding: SessionBinding,
+    source: string,
+    signal: AbortSignal | undefined,
+    call: (
+      token: string,
+      native: NativeBinding,
+      signal: AbortSignal,
+    ) => Promise<NativeOperationResult>,
+  ): Promise<NativeOperationResult> {
     let refreshed: ProviderCredentials | undefined;
     try {
       return await this.#bounded(owner, signal, async (current) => {
@@ -2482,12 +2523,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           await this.#wait(owner.refresh, current);
         }
         const credentials = owner.credentials!;
-        const result = await this.#dependencies.retainedConsent!(
-          credentials.accessToken,
-          this.#binding(binding, source),
-          captured,
-          current,
-        );
+        const result = await call(credentials.accessToken, this.#binding(binding, source), current);
         this.#assertSignal(current);
         this.#assert(owner, 'entry');
         if (owner.credentials !== credentials) throw new BffSessionError('response');
@@ -2497,6 +2533,157 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#refused(error, refreshed, owner);
       throw error;
     }
+  }
+
+  /**
+   * ADR-0106 § 9 and ADR-0107 § 4: pins one data-request response to its owner. The live session mode holds the
+   * active owner (its context's group); the retained mode holds the entry owner, exactly as the consent entry does.
+   */
+  retainDataRequests(
+    binding: SessionBinding,
+    lease: NativeDataRequestResponseLease,
+    mode: 'session' | 'entry',
+  ): DataRequestRetention {
+    if (mode === 'entry') {
+      const owner = this.#findEntry(binding);
+      // The entry's deadline is fixed at sign-in and never extended: the response ends with it.
+      const ends = Math.min(owner.deadline, owner.credentials!.refreshExpiresAt);
+      const remainingMs = Math.max(1, ends - this.#now());
+      lease.pin(
+        () => {
+          this.#assert(owner, 'entry');
+          if (lease.signal.aborted) throw new BffSessionError('revoked');
+        },
+        owner,
+        remainingMs,
+      );
+      void this.#tracked(owner, () => lease.cleaned);
+      // The same bound on the wall clock, as the entry projection states it: the page tells the person when it ends.
+      return Object.freeze({
+        csrfToken: owner.csrf,
+        scope: null,
+        expiresAt: Math.round(owner.utcOffset + ends),
+        remainingMs,
+      });
+    }
+    const owner = this.#find(binding);
+    if (!owner?.identity) throw new BffSessionError('revoked');
+    const remainingMs = Math.max(1, this.#effective(owner) - this.#now());
+    lease.pin(
+      () => {
+        this.#assert(owner, 'active');
+        if (!this.#live(owner) || lease.signal.aborted) throw new BffSessionError('revoked');
+      },
+      owner,
+      remainingMs,
+    );
+    void this.#tracked(owner, () => lease.cleaned);
+    return Object.freeze({
+      csrfToken: owner.csrf,
+      scope: owner.identity.organizationId === null ? 'tenant' : 'organization',
+      expiresAt: null,
+      remainingMs,
+    });
+  }
+  /** The live session's own data requests; a list cursor is sealed to this owner and purpose. */
+  async ownDataRequest(
+    binding: SessionBinding,
+    source: string,
+    operation: OwnDataRequestOperation,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<NativeOperationResult> {
+    this.#checkSource(binding.host, source);
+    const owner = this.#find(binding);
+    if (!owner) throw new BffSessionError('revoked');
+    if (!bffSecretEquals(csrf, owner.csrf)) throw new BffSessionError('csrf');
+    const listing = operation.kind === 'listOwnDataRequests';
+    const captured: OwnDataRequestOperation =
+      listing && operation.cursor !== undefined
+        ? {
+            ...operation,
+            cursor: this.#openPageCursor(owner, 'data_requests', operation.cursor),
+          }
+        : operation;
+    const result = await this.operate(binding, source, captured, csrf, signal);
+    return listing ? this.#sealedPage(owner, 'data_requests', result) : result;
+  }
+  /** The retained entry's closed data-request set (ADR-0106 § 9), on the entry owner's credential. */
+  async retainedDataRequest(
+    binding: SessionBinding,
+    source: string,
+    operation: RetainedDataRequestOperation,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<NativeOperationResult> {
+    this.#checkSource(binding.host, source);
+    const owner = this.#findEntry(binding);
+    this.#entryProof(owner, csrf);
+    const retained = this.#dependencies.retainedDataRequest;
+    if (!retained) throw new BffSessionError('configuration');
+    let captured: RetainedDataRequestOperation;
+    try {
+      const raw = JSON.stringify(operation);
+      if (Buffer.byteLength(raw) > 16 * 1024) throw new Error();
+      captured = JSON.parse(raw) as RetainedDataRequestOperation;
+      if (
+        !captured ||
+        ![
+          'listRetainedDataRequestScopes',
+          'listRetainedDataRequests',
+          'createRetainedDataExport',
+          'createRetainedDataErasure',
+          'createRetainedAccountClosure',
+          'cancelRetainedDataRequest',
+          'revokeRetainedDataExport',
+          'mintRetainedDataExportTicket',
+          'readRetainedDataExportChunk',
+        ].includes(captured.kind)
+      )
+        throw new Error();
+    } catch {
+      throw new BffSessionError('configuration');
+    }
+    const purpose =
+      captured.kind === 'listRetainedDataRequestScopes'
+        ? 'data_request_scopes'
+        : captured.kind === 'listRetainedDataRequests'
+          ? 'data_requests'
+          : undefined;
+    if (
+      purpose &&
+      (captured.kind === 'listRetainedDataRequestScopes' ||
+        captured.kind === 'listRetainedDataRequests') &&
+      captured.cursor !== undefined
+    )
+      captured = { ...captured, cursor: this.#openPageCursor(owner, purpose, captured.cursor) };
+    const call = captured;
+    const result = await this.#retained(owner, binding, source, signal, (token, native, current) =>
+      retained(token, native, call, current),
+    );
+    return purpose ? this.#sealedPage(owner, purpose, result) : result;
+  }
+  /** Replaces a page's raw API continuation with one sealed to the owner and purpose. */
+  #sealedPage(
+    owner: Owner,
+    purpose: 'data_requests' | 'data_request_scopes',
+    result: NativeOperationResult,
+  ): NativeOperationResult {
+    if (result.kind !== 'success') return result;
+    const data = result.data as Readonly<{
+      pageInfo: Readonly<{ nextCursor: string | null }> & Record<string, unknown>;
+    }>;
+    const next = data.pageInfo.nextCursor;
+    return {
+      ...result,
+      data: {
+        ...data,
+        pageInfo: {
+          ...data.pageInfo,
+          nextCursor: next === null ? null : this.#wrapPageCursor(owner, purpose, next),
+        },
+      },
+    } as NativeOperationResult;
   }
 
   peek(binding: SessionBinding): SessionProjection | null {

@@ -2,6 +2,7 @@
 using System;
 using System.Net;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
+using LearnStack.SharedKernel.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -18,6 +19,7 @@ namespace LearnStack.Modules.Audit.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
+                .HasAnnotation("LearnStack:PersonalData:Validated", true)
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -27,57 +29,81 @@ namespace LearnStack.Modules.Audit.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
-                        .HasColumnName("id");
+                        .HasColumnName("id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-scoped audit configuration identity, not a person identifier.");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was created.");
 
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid")
-                        .HasColumnName("created_by");
+                        .HasColumnName("created_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate creation to its actor.");
 
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("deleted_at");
+                        .HasColumnName("deleted_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was soft-deleted.");
 
                     b.Property<Guid?>("DeletedBy")
                         .HasColumnType("uuid")
-                        .HasColumnName("deleted_by");
+                        .HasColumnName("deleted_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate soft deletion to its actor.");
 
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean")
-                        .HasColumnName("is_enabled");
+                        .HasColumnName("is_enabled")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Operation catalogue selector and coverage toggle; no person values.");
 
                     b.Property<string>("ModuleName")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
-                        .HasColumnName("module");
+                        .HasColumnName("module")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Operation catalogue selector and coverage toggle; no person values.");
 
                     b.Property<string>("Operation")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)")
-                        .HasColumnName("operation");
+                        .HasColumnName("operation")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Operation catalogue selector and coverage toggle; no person values.");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
-                        .HasColumnName("tenant_id");
+                        .HasColumnName("tenant_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-scoped audit configuration identity, not a person identifier.");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
+                        .HasColumnName("updated_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was last updated.");
 
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
+                        .HasColumnName("updated_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute the latest aggregate update to its actor.");
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L)
-                        .HasColumnName("row_version");
+                        .HasColumnName("row_version")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Detect concurrent writes to this aggregate revision.");
 
                     b.HasKey("Id")
                         .HasName("pk_audit_config");
@@ -94,104 +120,148 @@ namespace LearnStack.Modules.Audit.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
-                        .HasColumnName("id");
+                        .HasColumnName("id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Audit record identity, institution scope and subject linkage.");
 
                     b.Property<DateTimeOffset>("Timestamp")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("timestamp");
+                        .HasColumnName("timestamp")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Audit record identity, institution scope and subject linkage.");
 
                     b.Property<string>("ActorEmail")
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)")
-                        .HasColumnName("actor_email");
+                        .HasColumnName("actor_email")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Actor identity and originating address retained as audit evidence.");
 
                     b.Property<Guid?>("ActorUserId")
                         .HasColumnType("uuid")
-                        .HasColumnName("actor_user_id");
+                        .HasColumnName("actor_user_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Actor identity and originating address retained as audit evidence.");
 
                     b.Property<string>("AfterState")
                         .HasColumnType("jsonb")
-                        .HasColumnName("after_state");
+                        .HasColumnName("after_state")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Captured operation evidence may contain personal references and redacted personal payloads.");
 
                     b.Property<string>("BeforeState")
                         .HasColumnType("jsonb")
-                        .HasColumnName("before_state");
+                        .HasColumnName("before_state")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Captured operation evidence may contain personal references and redacted personal payloads.");
 
                     b.Property<string>("Changes")
                         .HasColumnType("jsonb")
-                        .HasColumnName("changes");
+                        .HasColumnName("changes")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Captured operation evidence may contain personal references and redacted personal payloads.");
 
                     b.Property<string>("CorrelationId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
-                        .HasColumnName("correlation_id");
+                        .HasColumnName("correlation_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Request correlation and client evidence can link an audited act to a person.");
 
                     b.Property<string>("EntityId")
                         .HasColumnType("text")
-                        .HasColumnName("entity_id");
+                        .HasColumnName("entity_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Audit record identity, institution scope and subject linkage.");
 
                     b.Property<string>("EntityType")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
-                        .HasColumnName("entity_type");
+                        .HasColumnName("entity_type")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed operation, resource-type and outcome descriptors without person values.");
 
                     b.Property<string>("ErrorKey")
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)")
-                        .HasColumnName("error_key");
+                        .HasColumnName("error_key")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed operation, resource-type and outcome descriptors without person values.");
 
                     b.Property<IPAddress>("IpAddress")
                         .HasColumnType("inet")
-                        .HasColumnName("ip_address");
+                        .HasColumnName("ip_address")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Actor identity and originating address retained as audit evidence.");
 
                     b.Property<string>("Metadata")
                         .HasColumnType("jsonb")
-                        .HasColumnName("metadata");
+                        .HasColumnName("metadata")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Captured operation evidence may contain personal references and redacted personal payloads.");
 
                     b.Property<string>("ModuleName")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
-                        .HasColumnName("module");
+                        .HasColumnName("module")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed operation, resource-type and outcome descriptors without person values.");
 
                     b.Property<string>("Operation")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)")
-                        .HasColumnName("operation");
+                        .HasColumnName("operation")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed operation, resource-type and outcome descriptors without person values.");
 
                     b.Property<string>("OperationClass")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("operation_class");
+                        .HasColumnName("operation_class")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed operation, resource-type and outcome descriptors without person values.");
 
                     b.Property<string>("OperationType")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("operation_type");
+                        .HasColumnName("operation_type")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed operation, resource-type and outcome descriptors without person values.");
 
                     b.Property<Guid?>("OrganizationId")
                         .HasColumnType("uuid")
-                        .HasColumnName("organization_id");
+                        .HasColumnName("organization_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Audit record identity, institution scope and subject linkage.");
 
                     b.Property<string>("Outcome")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("outcome");
+                        .HasColumnName("outcome")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed operation, resource-type and outcome descriptors without person values.");
 
                     b.Property<string>("Reason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
-                        .HasColumnName("reason");
+                        .HasColumnName("reason")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Captured operation evidence may contain personal references and redacted personal payloads.");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
-                        .HasColumnName("tenant_id");
+                        .HasColumnName("tenant_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Audit record identity, institution scope and subject linkage.");
 
                     b.Property<string>("UserAgent")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)")
-                        .HasColumnName("user_agent");
+                        .HasColumnName("user_agent")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Request correlation and client evidence can link an audited act to a person.");
 
                     b.HasKey("Id", "Timestamp")
                         .HasName("audit_log_pkey");
@@ -212,6 +282,10 @@ namespace LearnStack.Modules.Audit.Infrastructure.Persistence.Migrations
                     b.HasIndex("ModuleName", "Operation", "Timestamp")
                         .IsDescending(false, false, true)
                         .HasDatabaseName("ix_audit_log_module_operation_timestamp");
+
+                    b.HasIndex("TenantId", "EntityType", "EntityId", "Timestamp")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("ix_audit_log_tenant_id_entity_type_entity_id_timestamp");
 
                     b.ToTable("audit_log", null, t =>
                         {

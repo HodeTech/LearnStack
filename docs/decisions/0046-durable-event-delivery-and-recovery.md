@@ -538,6 +538,10 @@ kinds.
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.
 
+### Amendment 6 — The privileged erasure consumer is an operator act (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) answer the privileged execution contract this record requires before an erasure consumer can become Active: no privileged subscription is registered. The privileged half of an erasure is an operator act on the platform scope under [ADR-0101](0101-platform-operator-authority.md), and the ordinary event executor keeps refusing privileged subscriptions. Erasure never rewrites or deletes an outbox, delivery or inbox row, and the replay floor is stated in [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) § 9. The Decision, Status, Date and every other section of this record are unchanged.
+
 ## References
 
 - [ADR-0006](0006-events-and-outbox.md), [ADR-0010](0010-cross-module-communication.md)

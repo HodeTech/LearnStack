@@ -248,7 +248,28 @@ will raise them — which this standard requires it to do.
   scope handle's checkpoint, with the outcome `indeterminate`, committed before the
   provider call ([ADR-0044 Amendment 18](../decisions/0044-audit-write-path.md)), and a
   completion row on their own slug. Both rows name the tenant the owner marker names
-  and carry no ticket and no tenant-authored text.
+  and carry no ticket and no tenant-authored text. The operator data-request
+  operations of [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md)
+  § 8 and [ADR-0108](../decisions/0108-privileged-audit-redaction.md) are `(off-path)`
+  too: `platform.data_request.inspect` is audited by the platform scope's entry row,
+  and `audit.redaction.apply` writes one result row under the request's real tenant,
+  with no actor, no ticket and the operator attribution in `metadata`, on the
+  transaction that redacts the audit rows and completes the request. A global account
+  closure's acts are `(off-path)` in the same way, and their rows name the platform
+  sentinel tenant and so carry the ticket: `platform.closure.begin` writes one result
+  row for a Begin or a refusal it records, and none for a repeat that changes nothing
+  or a refusal it does not record (a closure past its bounds, or one the provider's
+  port could never finish), whose entry row is its record, and
+  `platform.closure.finalize` writes an intent row on
+  `platform.closure.finalize_attempt` at the scope handle's checkpoint, on the
+  transaction that redacted the person's audit rows in every participant tenant and the
+  sentinel tenant, and then its result row
+  ([ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 8). Every Finalize
+  attempt that reaches the checkpoint writes its own intent row, a repeat's included,
+  and unless a fault stops it a result row whose closed `outcome` says how it ended:
+  `finalized`, a stop at the provider, a group found pending again under the second
+  transaction's fences, or another call's finalization found. A Finalize refused before
+  the checkpoint, and a repeat of one that landed, writes only its entry row.
 
 ## Baseline Coverage (LearnStack Core Modules)
 
@@ -700,6 +721,14 @@ the HTTP, seed, integration-delivery and job authorization sources remain unchan
   separate. Account history is not evidence of a login in a particular tenant.
 - The central MUST write and inbox/delivery completion share the business
   transaction. Duplicate deliveries cannot create another successful observation.
+- A delivery whose affected person's User is no longer Active refuses the person
+  ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7,
+  9): the Identity fact reader reports the status from a confined definer under the
+  person's User fence, and the subscriber, with the evidence it alone mints, calls
+  `AuditStateCapture.WithholdProviderEvent`, which withdraws that invocation's one
+  unclaimed, still-pending observation intent. No row names a closing or closed person;
+  the delivery completes with its inbox row as a recorded no-op, never a failure, and a
+  replay runs the same rule. No other intent or operation can be withheld.
 - Global admission receipts are operational records, not global Audit rows.
   Tenant targets, delivery envelopes and Audit retain their independent replay/
   retention dependencies; expiry of global receipts does not erase those links.
@@ -1028,8 +1057,8 @@ observes neither a rollback nor a `42501`.
 - [`AuditEntry_Inherits_Entity_Not_AuditableEntity`](21-architecture-tests-catalogue.md#auditentry_inherits_entity_not_auditableentity)
   — the audit aggregate is append-only by inheritance.
 - [`AuditEntry_Is_AppendOnly`](21-architecture-tests-catalogue.md#auditentry_is_appendonly)
-  — no `UPDATE` or `DELETE` targets `audit_log` outside the three named sites, and
-  `IAuditStore` exposes no update method.
+  — no `UPDATE` or `DELETE` targets `audit_log` outside its one named site, the
+  redaction executor, and `IAuditStore` exposes no update method.
 - [`OperationType_Enum_Matches_Catalog`](21-architecture-tests-catalogue.md#operationtype_enum_matches_catalog)
   — the enum and § Operation Types carry the same seven members.
 - [`Every_Shipped_Request_Is_Registered`](21-architecture-tests-catalogue.md#every_shipped_request_is_registered)

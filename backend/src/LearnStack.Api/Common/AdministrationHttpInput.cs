@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using LearnStack.SharedKernel.Domain;
@@ -26,6 +27,17 @@ internal static class AdministrationHttpInput
 
     internal static async Task<byte[]> ReadBodyBytesAsync(HttpContext http)
     {
+        var (buffer, count) = await ReadBodyAsync(http);
+        try { return buffer[..count]; }
+        finally { CryptographicOperations.ZeroMemory(buffer); }
+    }
+
+    /// <summary>
+    /// The body into one fixed buffer the caller owns and clears: nothing is copied out of it, so clearing it is all the
+    /// clearing this read owes. The request's own buffering stream is the host's and is not reachable from here.
+    /// </summary>
+    private static async Task<(byte[] Buffer, int Count)> ReadBodyAsync(HttpContext http)
+    {
         if (http.Request.ContentLength > MaxBodyBytes) throw TooLarge();
         http.Request.EnableBuffering();
         http.Request.Body.Position = 0;
@@ -40,7 +52,12 @@ internal static class AdministrationHttpInput
                 count += read;
             }
             if (count > MaxBodyBytes) throw TooLarge();
-            return bytes[..count];
+            return (bytes, count);
+        }
+        catch
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+            throw;
         }
         finally { http.Request.Body.Position = 0; }
     }
@@ -60,6 +77,31 @@ internal static class AdministrationHttpInput
         catch (DecoderFallbackException) { }
         catch (InvalidOperationException) { }
         document?.Dispose();
+        return null;
+    }
+
+    /// <summary>
+    /// <see cref="ReadObjectAsync"/> for a body that carries a secret (a download ticket): the document parses the read
+    /// buffer in place and disposing the result overwrites that buffer with zeros, on every path. Best effort: a string
+    /// the caller takes from the document is a managed copy this cannot clear.
+    /// </summary>
+    internal static async Task<SensitiveJsonBody?> ReadSensitiveObjectAsync(HttpContext http, params string[] fields)
+    {
+        if (http.Request.Query.Count != 0 || !SupportsJsonMedia(http.Request)) return null;
+        var (buffer, count) = await ReadBodyAsync(http);
+        var body = buffer.AsMemory(0, count);
+        JsonDocument? document = null;
+        try
+        {
+            _ = StrictUtf8.GetCharCount(body.Span);
+            document = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 5 });
+            if (HasFields(document.RootElement, fields)) return new SensitiveJsonBody(document, buffer);
+        }
+        catch (JsonException) { }
+        catch (DecoderFallbackException) { }
+        catch (InvalidOperationException) { }
+        document?.Dispose();
+        CryptographicOperations.ZeroMemory(buffer);
         return null;
     }
 
@@ -168,4 +210,25 @@ internal static class AdministrationHttpInput
         TryGetString(item, out value) && value!.Length <= maximum && JsonValue.IsStorableText(value);
 
     private static BadHttpRequestException TooLarge() => new("Administration request body exceeds its limit.", StatusCodes.Status413PayloadTooLarge);
+}
+
+/// <summary>A parsed request body over a buffer that is overwritten with zeros when the body is disposed.</summary>
+internal sealed class SensitiveJsonBody(JsonDocument document, byte[] buffer) : IDisposable
+{
+    private bool _disposed;
+
+    public JsonElement RootElement => document.RootElement;
+
+    /// <summary>The read buffer itself, exposed so a test can prove it is cleared.</summary>
+    internal ReadOnlyMemory<byte> Buffer => buffer;
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        document.Dispose();
+        CryptographicOperations.ZeroMemory(buffer);
+    }
+
+    public override string ToString() => nameof(SensitiveJsonBody);
 }

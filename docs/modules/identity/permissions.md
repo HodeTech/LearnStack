@@ -30,6 +30,11 @@ permission admission. An attribute, realm role or SystemActor value grants no ro
 | `OperatorCreateFirstAdminCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | The first tenant-wide administrator of a tenant with no Membership history; the person is named by provider subject and must be an Active, bootstrapped User |
 | `OperatorRecoverAdminCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | A replacement administrator while no Active tenant-wide administrator Membership exists; the last-administrator guard is the database's and is unchanged |
 | `IdentityIssuerRebind` (an offline tool, not a command or a route) | Platform `platform.identity_authority.admin`, `PlatformOperator` token | The operator's per-act grant for the rebind operation only, checked by the operator gate in the tool; the write itself runs on the confined `learnstack_identity_rebind` role, with no tenant context ([ADR-0104](../../decisions/0104-controlled-issuer-rebind.md)) |
+| `DataRequestOperatorOperations.InspectAsync` (an operator route in the platform scope, not a command) | Platform `platform.data_request.read`, `PlatformOperator` token | The operator's per-act grant for `platform.data_request.inspect`, checked by the operator gate before the scope is entered; a closed-column read of the request and artifact tables across tenants that names no person ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8) |
+| `DataRequestOperatorOperations.CompleteErasureAsync` (an operator route in the platform scope, not a command) | Platform `platform.data_request.write`, `PlatformOperator` token | The per-act grant for `audit.redaction.apply`; one erasure awaiting its privileged step, whose subject, group and Memberships are read from its own row; the audit redaction, the completion through the request guard's platform arm and the result row in one platform transaction ([ADR-0108](../../decisions/0108-privileged-audit-redaction.md)) |
+| `AccountClosureOperatorOperations.BeginAsync` (an operator route in the platform scope, not a command) | Platform `platform.data_request.write`, `PlatformOperator` token | The per-act grant for `platform.closure.begin`; one closure, whose person and group are read from its own row; the person's fences, the judgment, the User's move to Closing and the request's to `fulfilling` and the result row in one platform transaction, then the fan-out, whose per-group acts the gate admits for the same operator and key ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7) |
+| `AccountClosureOperatorOperations.FinalizeAsync` (an operator route in the platform scope, not a command) | Platform `platform.data_request.write`, `PlatformOperator` token | The per-act grant for `platform.closure.finalize`; one begun closure, whose person and group are read from its own row; under the person's User fence alone, the readiness of every served group, the audit redaction of every participant tenant and the sentinel tenant and the intent row in one platform transaction, then the identity provider's deletion of the account, then the User's move to Closed, the completion of every participant erasure and open closure of the person and the result row in a second ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7, [ADR-0108](../../decisions/0108-privileged-audit-redaction.md) § 8) |
+| `FanOutClosureCommand` (a closure's per-group act, run by `ClosureFanOut` after Begin commits, never routed) | Platform `platform.data_request.write`, `PlatformOperator` source | The per-act grant for `identity.data_request.fan_out_closure`, asked of the gate once per participant group; the one operator act whose context names the group's organization ([ADR-0102](../../decisions/0102-production-tenant-onboarding.md) Amendment 2); creates or adopts the closing person's erasure of that group on the application role under the person's User fence ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7) |
 
 Scope selection derives from immutable target Membership/validated declaration,
 never a claimed scope string. Finite metadata alternatives count the exact five
@@ -45,6 +50,7 @@ adoption supplies identity facts; it does not independently grant seed authority
 | `MembershipProfile` | – | Tenant + Organization | – | – | Exact v1 manifest, bounded contextual fields |
 | `Invitation` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0093's exact invitation operations; no new assignable key |
 | `FederationConnection` | – | – | – | Tenant `identity.federation.admin` | Registry v4; granted to no Role by registration; explicit Tenant Admin adoption only |
+| `DataSubjectRequest` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0106 § 4: the administrator's operations reuse the existing pairs; the subject's own operations carry no key. No assignable key is added; the operator's inspection and erasure completion take the non-assignable Platform keys above |
 
 Empty cells mean no foundation key exists. Bootstrap/seed verification reads
 do not invent directory/read keys; their exact owner/audit classification is
@@ -175,6 +181,61 @@ work and remains opt-in. Membership success still requires ordinary explicit
 session admission. Private SMTP source custody/job execution is finite trusted
 infrastructure admission, not a human permission or SystemActor bypass; Standard
 05 and the module specification own its exact source/lease consumers.
+
+## Subject data request bindings
+
+**Accepted under
+[ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 3–§ 4
+and [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) §
+4, § 5, § 7.** No assignable key is added and the grant union's bytes do not change. The
+subject's live-session operations use the key-less `OwnDataRequest` kind (an Active
+Membership in exactly the announced group; operation ids under
+`identity.data_request.`); the administrator's are Protected on the existing
+`[identity.membership.admin at Tenant, at Organization]` alternatives. Every operation
+is confined to the announced group, and a request of another group, person or tenant is
+absent (`not_found`). The [audit matrix](audit.md#data-request-bindings) owns the
+classifications.
+
+| Application consumer | Capability / exact authority | Boundary |
+|---|---|---|
+| `CreateOwnDataExportCommand` | `OwnDataRequest` | The subject files for themselves under their exclusive User fence and the shared tenant fence; one active export per subject and group |
+| `CreateOwnDataErasureCommand` | `OwnDataRequest` | As the export, one active erasure per subject and group; `scheduled`, its job due when the 24-hour window ends; refused while the subject is the tenant's only eligible tenant-wide administrator (tenant-wide group) or a hold applies |
+| `CreateOwnAccountClosureCommand` | `OwnDataRequest` | The person alone files the global account closure from the session's group, its originating group; one active closure per subject and group; `scheduled` with its execution time 24 hours later and no job; refused while a hold applies, never for the last administrator (its Begin judges that). No administrator operation files, lists, reads or cancels a closure, and no Platform permission is involved |
+| `ListOwnDataRequestsQuery`, `GetOwnDataRequestQuery`, `ReadOwnDataRequestReceiptQuery` | `OwnDataRequest` | Only requests about the actor, in the group; Off |
+| `CancelOwnDataRequestCommand` | `OwnDataRequest` | The subject cancels a request about them, whoever filed it, with `If-Match`: an export while requested, an erasure before its execution time, a closure until its Begin commits |
+| `RevokeOwnDataExportCommand` | `OwnDataRequest` | The subject revokes an unexpired artifact of a request about them, including one an administrator filed |
+| `MintOwnDataExportTicketCommand`, `ReadOwnDataExportChunkCommand` | `OwnDataRequest` and the session binding | Subject only; the ticket binds the credential of the session that minted it. An administrator never gets a ticket or content |
+| `CreateDataExportForSubjectCommand` | Applicable membership-admin covering the group | For the person who holds or held the named Membership of any status in the group; never for oneself; a Tenant holder files in the announced group, an Organization holder only in their organization's |
+| `CreateDataErasureForSubjectCommand` | Same | Only for a person whose named Membership in the group is Revoked and who holds no Active or Suspended one there (`subject_membership_current` otherwise): its own target authorization, since membership administration refuses a Revoked target; never for oneself |
+| `ListDataRequestsQuery`, `GetDataRequestQuery`, `ReadDataRequestReceiptQuery` | Same | The group's exports and erasures, status and counts only, never a closure; MUST sensitive read |
+| `CancelDataRequestCommand`, `RevokeDataExportCommand` | Same, and the actor filed the request | Another administrator reads the request but cannot cancel it or revoke its artifact |
+
+**Retained own-scope entry
+([ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 4, §
+9).** Nine further key-less operations use the `OwnDataRequestEntry` kind, plus the
+receipt read of its five keyed ones. No Membership admits them: each is admitted only by
+a live `OwnDataRequestScopeWitness` that the one HTTP source,
+`OwnDataRequestSubjectSource`, minted for its exact invocation after
+`fn_identity_own_data_request_scopes` proved the group for the verified subject on the
+real host, under the `HostAndOwnDataRequestScope` origin, which reaches no other kind.
+So a Suspended person, a person whose Membership is Revoked and a group where only a
+request survives are served, and a Closing, Closed or unknown binding, the system actor
+and a person with no retained group are not. The selector-free native session source is
+required; a tenant or organization selector header is refused. On an organization host
+the group is that organization's or none. No operation of any other kind is reachable
+under this origin, and no retained operation under any other.
+
+| Application consumer | Capability / exact authority | Boundary |
+|---|---|---|
+| `ListRetainedDataRequestScopesQuery` | `OwnDataRequestEntry` (List) | The subject's retained groups on the real host, at most twenty per page; physically read-only; Off |
+| `ListRetainedDataRequestsQuery` | `OwnDataRequestEntry` (Read) | Only requests about the actor, in the one selected group; physically read-only; Off |
+| `CreateRetainedDataExportCommand` | `OwnDataRequestEntry` (Create) | As `CreateOwnDataExportCommand`, in the selected group; a Revoked tombstone counts as a Membership; keyed, 202 without `Location` |
+| `CreateRetainedDataErasureCommand` | `OwnDataRequestEntry` (Create) | As `CreateOwnDataErasureCommand`, in the selected group; the path of a Suspended person and of one whose Membership is Revoked; keyed, 202 without `Location` |
+| `CreateRetainedAccountClosureCommand` | `OwnDataRequestEntry` (Create) | As `CreateOwnAccountClosureCommand`, from the selected group as the originating group; the path of a Suspended person and of one whose Membership is Revoked; keyed, 202 without `Location` |
+| `CancelRetainedDataRequestCommand` | `OwnDataRequestEntry` (Cancel) | As `CancelOwnDataRequestCommand`, in the selected group, with `If-Match`; keyed |
+| `RevokeRetainedDataExportCommand` | `OwnDataRequestEntry` (Revoke) | As `RevokeOwnDataExportCommand`, in the selected group, with the artifact version in `If-Match`; keyed |
+| `MintRetainedDataExportTicketCommand`, `ReadRetainedDataExportChunkCommand` | `OwnDataRequestEntry` (Ticket, Chunk) and the retained session binding | Subject only; the ticket binds the retained-entry credential under its own domain and is never honoured on the live path, nor a live ticket here |
+| `ReadRetainedDataRequestReceiptQuery` | `OwnDataRequestEntry` (the keyed purpose's witness) | Disclosure of the original request a keyed replay names; Off |
 
 ## Proof ownership
 

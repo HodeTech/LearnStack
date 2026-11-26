@@ -6,6 +6,7 @@ using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.CustomFields;
 using LearnStack.Modules.Tenancy.Application.FieldConsents;
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.Application.DataProtection;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
@@ -188,6 +189,9 @@ public static class PersistenceCompositionExtensions
             PlatformAdminScope.PlatformDataSourceKey,
             (_, _) => new PrivilegedDataSource(() => BuildPlatformDataSource(platformConnectionString)));
         services.AddLearnStackBackgroundJobContracts();
+        // ADR-0107 § 1 and § 4: the participant collection, the hold-source default, the bundle
+        // ceiling, the export key ring and the participants each module registers from its own boundary.
+        services.AddDataExportCustody(configuration);
         services.AddInvitationEmailDelivery(configuration);
 
         // The scope is a stateless singleton. Admission is not its concern any more: the
@@ -309,6 +313,17 @@ public static class PersistenceCompositionExtensions
         // ADR-0099 Amendment 10: the operator's federation report, remove and disable, over the platform scope and the
         // operator port, which the composition root replaces with the confined adapter when the admin client is configured.
         services.TryAddScoped<IFederationBrokerOperations, LearnStack.Modules.Identity.Infrastructure.Federation.FederationBrokerOperations>();
+        // ADR-0107 § 8, ADR-0108: the operator's data-request inspection and erasure completion in the platform scope.
+        services.TryAddScoped<IDataRequestOperatorOperations,
+            LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestOperatorOperations>();
+        // ADR-0107 § 7: the operator's closure Begin in the platform scope. It hands the served groups to IClosureFanOut,
+        // which the operator authority registers with the gate and the act executor it needs (a host that composes
+        // persistence alone has neither); with none registered the Begin refuses before it enters the scope, so no person
+        // is moved to Closing by a deployment that cannot fan the closure out.
+        services.TryAddScoped<LearnStack.Modules.Identity.Application.DataRequests.IClosureGroupLifecycleReader,
+            LearnStack.Modules.Identity.Application.DataRequests.ClosureGroupLifecycleReader>();
+        services.TryAddScoped<IAccountClosureOperatorOperations,
+            LearnStack.Modules.Identity.Infrastructure.DataRequests.AccountClosureOperatorOperations>();
 
         // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
         // not Development only: ADR-0035 names NullEntitlementProvider the working default
@@ -336,6 +351,9 @@ public static class PersistenceCompositionExtensions
         services.AddHealthChecks().AddCheck<AuditHealthCheck>(AuditHealthCheck.Name);
 
         services.TryAddScoped<IAuditStore, PostgresAuditStore>();
+        // ADR-0108 § 2: the one redaction executor, a singleton over every module's IUserReferenceLocator, which the
+        // platform scope resolves for the act it admitted; LearnStack.Infrastructure never references it.
+        services.TryAddSingleton<IAuditRedactor, AuditRedactionExecutor>();
         services.TryAddScoped<IOutbox, PostgresOutbox>();
         services.TryAddScoped<PostgresDeliveryAcceptance>();
         services.TryAddScoped<IInboxGuard, PostgresInboxGuard>();
@@ -419,6 +437,8 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<IOwnMembershipFieldConsentHistory, OwnMembershipFieldConsentHistory>();
         services.TryAddScoped<IOwnFieldConsentReceiptReader, OwnFieldConsentReceiptReader>();
         services.TryAddScoped<IConsentSubjectScopeLookup, ConsentSubjectScopeLookup>();
+        services.TryAddScoped<LearnStack.Modules.Identity.Application.Contracts.DataRequests.IOwnDataRequestScopeLookup,
+            LearnStack.Modules.Identity.Infrastructure.Persistence.OwnDataRequestScopeLookup>();
         services.TryAddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.IPublicEducationReadStore, PublicEducationReadStore>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.PublicReads.PublicEducationDisplay>();

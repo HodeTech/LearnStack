@@ -386,6 +386,47 @@
       ]
     },
     {
+      "clientId": "learnstack-account-removal",
+      "name": "LearnStack account removal (confidential service)",
+      "description": "API-only machine client for the closure's account deletion (ADR-0107 section 7). manage-users only. See infra/keycloak/README.md.",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_ACCOUNT_REMOVAL_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "consentRequired": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocol": "openid-connect",
+      "attributes": {},
+      "defaultClientScopes": [],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "learnstack-account-removal-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "usermodel.clientRoleMapping.clientId": "realm-management",
+            "claim.name": "resource_access.realm-management.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "account",
       "name": "${client_account}",
       "enabled": false,
@@ -585,6 +626,16 @@
       "clientRoles": {
         "realm-management": [
           "manage-identity-providers"
+        ]
+      }
+    },
+    {
+      "username": "service-account-learnstack-account-removal",
+      "enabled": true,
+      "serviceAccountClientId": "learnstack-account-removal",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users"
         ]
       }
     }
@@ -1402,6 +1453,12 @@
         "client": "learnstack-federation-admin",
         "roles": [
           "manage-identity-providers"
+        ]
+      },
+      {
+        "client": "learnstack-account-removal",
+        "roles": [
+          "manage-users"
         ]
       }
     ]

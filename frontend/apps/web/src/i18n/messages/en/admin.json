@@ -8,7 +8,9 @@
     "invitations": "Invitations",
     "invitation_policy": "Invitation lifetime",
     "custom_fields": "Custom fields",
-    "federation": "Single sign-on"
+    "federation": "Single sign-on",
+    "data_requests": "Your data",
+    "subject_data_requests": "Data requests"
   },
   "scope": {
     "tenant": "Institution-wide access",
@@ -148,6 +150,135 @@
     "policy_save": "Save invitation lifetime",
     "policy_read_only": "You can view this policy. Editing requires institution-wide settings permission.",
     "required": "Required"
+  },
+  "data_requests": {
+    "title": "Data requests",
+    "detail_title": "Data request",
+    "intro": "Requests to export or erase the data of members in your current access, newest first. You see each request's status and counts, never the data itself.",
+    "no_download": "An exported file is available only to the person it concerns, on their own data page. Administrators cannot download it.",
+    "no_closure": "An account closure is the person's own request and is not shown here.",
+    "from_member": "To ask for an export, open the member's page. To ask for an erasure, revoke the membership on the member's page first; the page where its erasure is asked for then opens.",
+    "open_members": "Go to members",
+    "scope_tenant": "These are the requests about institution memberships. Requests about a branch membership are made and shown in that branch's access.",
+    "scope_organization": "These are the requests about memberships in your current branch.",
+    "list_title": "Requests",
+    "empty": "No data requests have been made in this scope.",
+    "next_page": "Older requests",
+    "back": "Back to data requests",
+    "concerns": "Member",
+    "name_unavailable": "Member name unavailable",
+    "subject_revoked": "Revoked member",
+    "filed_by": "Requested by",
+    "memberships_note": "This request covers more than one membership record of this person in this scope:",
+    "membership_record": "Membership record",
+    "memberships_more": "Only the first 20 records are listed.",
+    "own_data": "Your data page",
+    "kind": {
+      "export": "Data export",
+      "erasure": "Erasure"
+    },
+    "filed": {
+      "you": "You",
+      "other": "Another administrator",
+      "person": "The person themselves",
+      "closure": "The person's account closure"
+    },
+    "next": {
+      "export_requested": "The export is being prepared. This usually takes a few minutes.",
+      "export_ready": "The file is ready. The person can download it on their own data page until the date shown.",
+      "export_gone": "The file can no longer be downloaded.",
+      "erasure_scheduled": "Erasure starts after the time shown. Until then the person can cancel it, and so can the administrator who asked for it.",
+      "erasure_scheduled_self": "Erasure starts after the time shown. Until then the person can cancel it.",
+      "erasure_fulfilling": "The member's data in this scope is being erased.",
+      "erasure_awaiting": "The member's data in this scope has been erased. An operator now completes the last step on the activity records."
+    },
+    "last_refusal": {
+      "blocked_window": "An operator tried to begin before the waiting time had ended.",
+      "blocked_hold": "It stopped because the institution has to keep this person's data for now, for example for an open payment matter.",
+      "blocked_last_administrator": "It stopped because this person is the institution's only administrator. Once another administrator is appointed, a new erasure can be requested."
+    },
+    "failure": {
+      "export_too_large": "The person's data was too large for one file, so the export failed. Ask the platform operator about the export size limit."
+    },
+    "collection_invitations_issued": "Invitations the person sent",
+    "retained": {
+      "consent_evidence": "Records of consents the person gave or withdrew",
+      "invitation_record": "Records of invitations the person sent or accepted",
+      "audit_actor_reference": "Activity records of things the person did",
+      "audit_entity_reference": "Activity records about the person's membership",
+      "audit_metadata_reference": "Activity records that mention the person",
+      "federation_actor_reference": "Records of single sign-on set-up steps the person took",
+      "unserved_group": "Places that could not be processed and keep the person's data for now"
+    },
+    "refusal": {
+      "request_already_active": "A request of this kind is already in progress for this member in this scope. Wait for it to finish, or cancel it if you asked for it.",
+      "subject_membership_current": "This person still has an active or suspended membership in this scope. Their data can be erased only once that membership is revoked.",
+      "blocked_hold": "This cannot go ahead right now because the institution has to keep this member's data for the moment, for example for an open payment matter.",
+      "blocked_last_administrator": "This member is the institution's only administrator. Appoint another administrator before asking for an erasure.",
+      "snapshot_too_large": "This person has more membership records in this scope than one request can hold. Ask the platform operator for help.",
+      "subject_not_admitted": "This person's account is being closed, so no new request can be made about them.",
+      "data_export_unavailable": "This file is no longer available, so there is nothing to delete.",
+      "unknown": "This request was refused. Check its current state before trying again."
+    },
+    "result": {
+      "export": "The export was requested. The file is usually ready within minutes and is then available to the person on their own data page.",
+      "erasure": "The erasure was requested. It starts after 24 hours; until then you or the person can cancel it.",
+      "revoked": "The file has been deleted. Nobody can download it any more."
+    },
+    "member": {
+      "intro": "Requests about this member's data in your current access. You see their status, never the data.",
+      "other_scope": "Data requests about this member are made in the member's own scope. Change account access to that scope to see or make them.",
+      "none": "No data requests about this member have been made in this scope.",
+      "unavailable": "This member's data requests could not be checked just now. The forms below still work, and every request is checked when it is made.",
+      "partial": "Only the 100 most recent requests of this scope were checked for this member. Older ones are on the data requests page.",
+      "all": "All data requests"
+    },
+    "export": {
+      "title": "Export this member's data",
+      "description": "Prepares one file with the data this institution holds about the person in this scope: their membership and profile, their answers and consents, their invitations and the activity records about them in this scope. The file is available only to the person, on their own data page, for 7 days. You see its status and size, never its content.",
+      "replaces": "An export cannot be requested while the person still has a file to download, because a new export would delete it.",
+      "action": "Request an export",
+      "active": "An export for this member is already being prepared."
+    },
+    "erasure": {
+      "title": "Erase this member's data",
+      "summary": "Erasure clears the person's profile and answers in this scope and removes their roles here. Their account and their memberships elsewhere stay as they are.",
+      "revoke_first": "Revoke it in Membership access first. The revocation is recorded as its own action, and the page where its erasure is asked for then opens.",
+      "start": "Review the erasure",
+      "erased_title": "What is erased",
+      "erased_profile": "The person's name, language and the answers they gave in this scope are cleared.",
+      "erased_roles": "Their roles in this scope are removed. The revoked membership stays as an empty record.",
+      "erased_exports": "Copies of their data that can still be downloaded are deleted, and a copy still being prepared is cancelled.",
+      "erased_invitations": "Invitations they sent in this scope that nobody has accepted yet are withdrawn.",
+      "kept_title": "What is kept",
+      "kept_intro": "Some records have to be kept. They no longer hold the person's name or answers, but they still refer to the person by an internal number:",
+      "kept_consent": "the record of the consents they gave or withdrew, kept as evidence;",
+      "kept_invitations": "the record of invitations they sent or accepted, including the e-mail address an invitation was sent to;",
+      "kept_audit": "activity records: after the erasure, an operator removes network addresses, browser details and e-mail addresses from the activity records about the person in this scope, including records of what administrators did about them here. Records of what the person did in other branches or at institution level are not changed by this request;",
+      "kept_attribution": "notes of who created or last changed something here;",
+      "kept_receipt": "this request and its receipt.",
+      "timing": "Erasure starts 24 hours after you request it. Until then the person can cancel it on their own data page, and you can cancel it on the request's page. If the person is admitted to this scope again within those 24 hours, the erasure still runs.",
+      "legend": "Confirm the erasure",
+      "confirm": "I understand what is erased and what is kept, and that erasure cannot be undone once it starts.",
+      "action": "Request erasure"
+    },
+    "erasure_page": {
+      "title": "Erase a revoked member's data",
+      "revoked": "This page asks for the erasure of the membership named below. A revoked membership is no longer listed among the members and has no member page.",
+      "membership": "Membership",
+      "only_revoked": "An erasure can be asked for only while the person has no active or suspended membership in this scope. Otherwise the request is refused and nothing changes.",
+      "missing": "No membership was named. This page opens for a membership right after it is revoked."
+    },
+    "cancel": {
+      "hint": "Cancelling ends the request. Nothing about the member changes.",
+      "other": "Another administrator asked for this request. Only they or the person can cancel it.",
+      "person": "The person asked for this request themselves. Only they can cancel it."
+    },
+    "revoke": {
+      "title": "Delete the exported file",
+      "hint": "Once deleted, nobody can download the file any more, including the person. The request stays as a record.",
+      "action": "Delete the file now"
+    }
   },
   "custom_fields": {
     "title": "Custom fields",

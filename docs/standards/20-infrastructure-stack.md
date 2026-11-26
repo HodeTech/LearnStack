@@ -499,6 +499,40 @@ the admitted calls, profile and egress rules; the
 [realm runbook](../../infra/keycloak/README.md#federation-administration-client) owns the
 client, the realm invariants and recovery.
 
+### Confined account-removal adapter
+
+**Derives from:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+
+`IIdentityProviderAccountRemoval` has one deleting method and a pure preflight check
+(`CanRemove`, which Begin asks before it moves anyone), deletes one person's
+identity-provider account, and has one caller of the deletion: the closure's Finalize,
+whose one call of the method an architecture rule pins. Its default,
+`RefusingIdentityProviderAccountRemoval`, refuses every call without a network effect;
+the internal `KeycloakAccountRemoval` in
+`LearnStack.Infrastructure.Identity.AccountRemoval` replaces it at the API composition
+root only when the `learnstack-account-removal` secret (`AccountRemoval:ClientSecret`)
+is configured. The client holds `manage-users`, which can also create and update users
+and reset credentials in the shared realm, so the adapter builds two routes (the token
+endpoint and `users/{id}` for a canonical UUID), sends two verbs (the token POST and the
+deletion DELETE), and keeps the subject and the secret out of every log, audit row and
+exception message. A refusal logs one closed reason code at Warning (event 7125) and a
+call that did not finish logs one closed cause (event 7126); neither logs anything else
+of the call, and the [runbook](../runbooks/account-removal-client.md) lists the codes. A
+`404` is absence only when it is the provider's own answer: JSON whose `error` is
+`User not found`, read from at most 256 bytes and neither kept nor logged. The type
+alone is not enough, because a gateway or an unrouted path answers `404` in JSON as
+well, so no hop in front of the provider can make a closure finish. Its resilience is
+`IProviderResilience<IIdentityProviderAccountRemoval>` from `Resilience:accountRemoval`:
+no retry, because the closure's Finalize is the repeatable retry and a repeat inside
+the pipeline would hide a lost answer; the timeout is 5 s and the adapter's own
+cancellation sits one second later, so that the breaker records the timeout; the
+circuit breaker is on within the federation adapter's ranges and the bulkhead is
+exactly 1 without a queue. These values are fixed: the composition root refuses any
+other value at startup. The [provider specification](../modules/identity/providers.md#account-removal-adapter)
+owns the call, answer and token rules, and the
+[runbook](../runbooks/account-removal-client.md) owns the client, its blast radius,
+rotation and leak response.
+
 ## APISIX Gateway
 
 - APISIX runs in **standalone mode** (YAML hot-reload, no etcd) per ADR-0015.

@@ -320,10 +320,15 @@ public sealed partial class GlobalIdentitySchemaTests
                 if (reader.GetString(9) != function.IdentityArguments || reader.GetInt16(10) != 0) issues.Add(function.Name + ":arguments");
                 if (reader.GetBoolean(11) != function.AppCallable) issues.Add(function.Name + ":app-execute");
                 if (reader.GetBoolean(12)) issues.Add(function.Name + ":public-execute");
-                var permittedGrantees = function.AppCallable ? new[] { "learnstack_app" }
+                // The two lock observers read only the calling backend's own pg_locks rows; the closure's users trigger
+                // exception and request-guard arrows call them as learnstack_platform (ADR-0107 § 8).
+                var permittedGrantees = function.Name is "fn_identity_lock_held" or "fn_identity_contextual_lock_key"
+                    ? new[] { "learnstack_app", "learnstack_platform" }
+                    : function.AppCallable ? new[] { "learnstack_app" }
                     : function.Name is "fn_identity_provider_event_accept" or "fn_identity_provider_event_claim" or "fn_identity_provider_event_retire"
                     ? new[] { "learnstack_identity_ingress" } : [];
-                if (!reader.GetFieldValue<string[]>(13).SequenceEqual(permittedGrantees)) issues.Add(function.Name + ":execution-grantees");
+                if (!reader.GetFieldValue<string[]>(13).Order(StringComparer.Ordinal).SequenceEqual(permittedGrantees))
+                    issues.Add(function.Name + ":execution-grantees");
                 if (reader.GetBoolean(14) != function.Strict || reader.GetString(15) != "u" || reader.GetBoolean(16))
                     issues.Add(function.Name + ":execution-properties");
             }
@@ -407,12 +412,22 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(30, "the closed set includes three provider definers, one target transition guard, the federation connection guard, the operator resolver and the identity authority key guard");
-        functions.Count(function => function.Definer).Should().Be(16);
+        functions.Should().HaveCount(42, "the closed set includes three provider definers, one target transition guard, the federation connection guard, the operator resolver, the identity authority key guard, "
+            + "the four data-request guards, their chunk and completed-export completeness checks, three canonical parent-scope checks, the retained own data-request scope definer, "
+            + "the request guard's User status witness and the delayed provider mirror's subject status");
+        functions.Count(function => function.Definer).Should().Be(19);
+        functions.Single(function => function.Name == "fn_identity_provider_event_subject_status").Signature
+            .Should().Be("public.fn_identity_provider_event_subject_status(uuid)");
+        functions.Single(function => function.Name == "fn_identity_user_status").Signature
+            .Should().Be("public.fn_identity_user_status(uuid)");
+        functions.Single(function => function.Name == "fn_identity_own_data_request_scopes").Signature
+            .Should().Be("public.fn_identity_own_data_request_scopes(uuid,uuid,uuid,text,uuid,uuid,integer)");
         functions.Single(function => function.Name == "fn_tenancy_own_field_consent_scope").Signature
             .Should().Be("public.fn_tenancy_own_field_consent_scope(uuid,uuid,uuid,text,uuid,uuid,integer)",
                 nameof(MembershipFieldConsentStorageTests.Definer_scope_is_subject_and_host_capped_with_a_closed_bounded_interface));
-        functions.SelectMany(function => function.Triggers).Should().HaveCount(30);
+        functions.SelectMany(function => function.Triggers).Should().HaveCount(40,
+            "the data-request functions add four mutation guards, three deferred completeness triggers (the chunk pair and the "
+            + "completed export's artifact) and three parent-scope triggers; the closure adds no trigger");
         var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
             .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         globalNames.Should().NotBeEmpty("the first Identity migration installs its confined global functions");
@@ -422,6 +437,7 @@ public sealed partial class GlobalIdentitySchemaTests
                 ? ProviderForbiddenFunctionBody()
                 : function.Name.StartsWith("fn_invitation_", StringComparison.Ordinal) ? EntryForbiddenFunctionBody()
                 : function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes" or "fn_identity_invitation_entry" or "fn_tenancy_own_field_consent_scope"
+                    or "fn_identity_own_data_request_scopes"
                 ? EntryForbiddenFunctionBody()
                 : globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
             forbidden.IsMatch(function.Body).Should().BeFalse(

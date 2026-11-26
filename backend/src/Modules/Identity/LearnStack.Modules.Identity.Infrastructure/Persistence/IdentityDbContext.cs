@@ -24,6 +24,9 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<ProviderEventTarget> ProviderEventTargets => Set<ProviderEventTarget>();
     public DbSet<FederationConnection> FederationConnections => Set<FederationConnection>();
+    public DbSet<DataSubjectRequest> DataSubjectRequests => Set<DataSubjectRequest>();
+    public DbSet<DataExportArtifact> DataExportArtifacts => Set<DataExportArtifact>();
+    public DbSet<DataExportTicket> DataExportTickets => Set<DataExportTicket>();
 
     public IdentityAuthorityId CurrentIdentityAuthorityId => identityScope.Current is { } current
         && current.Generation > 0

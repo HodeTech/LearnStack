@@ -155,6 +155,13 @@ const cases = [
     { kind: 'changeMembershipStatus', id: member, status: 'Suspended' },
     '/studio/members/' + member,
   ],
+  // ADR-0106 § 3: a Revoked Membership has no member page; the revocation leads to its erasure page.
+  [
+    '/api/studio/membership-status',
+    { membershipId: member, status: 'Revoked' },
+    { kind: 'changeMembershipStatus', id: member, status: 'Revoked' },
+    '/studio/data-requests/erasure?membership=' + member,
+  ],
   [
     '/api/studio/role-grants',
     { roleId: role, grants: '[{"scope":"Tenant","key":"identity.role.admin"}]' },
@@ -214,13 +221,20 @@ describe('exact native administration forms', () => {
       expect(await response!.text()).not.toContain('private-');
     },
   );
-  it('a terminal status returns to the fixed member directory', () => {
-    expect(
-      bffAdministrationForm(
-        '/api/studio/membership-status',
-        new URLSearchParams({ ...write, membershipId: member, status: 'Revoked' }),
-      ).destination,
-    ).toBe('/studio/members');
+  it('a terminal status settles on the erasure page and recovers to the fixed member directory', () => {
+    const form = bffAdministrationForm(
+      '/api/studio/membership-status',
+      new URLSearchParams({ ...write, membershipId: member, status: 'Revoked' }),
+    );
+    expect(form.destination).toBe('/studio/members');
+    expect(form.settledDestination).toBe('/studio/data-requests/erasure?membership=' + member);
+    for (const status of ['Active', 'Suspended'])
+      expect(
+        bffAdministrationForm(
+          '/api/studio/membership-status',
+          new URLSearchParams({ ...write, membershipId: member, status }),
+        ).settledDestination,
+      ).toBeUndefined();
   });
   it.each(cases)(
     '%s refuses missing, duplicate and unknown fields without API work',

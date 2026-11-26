@@ -140,6 +140,10 @@ export function createNativeApiTransport(
     const cancel = () => {
       if (reader) cancellation ??= reader.cancel().catch(() => undefined);
     };
+    // A data-export chunk body is decrypted plaintext. Every byte buffer read here is zeroed once the response is
+    // built or refused: the returned Response holds its own copy (Fetch's body extraction copies a BufferSource).
+    const chunks: Uint8Array[] = [];
+    let body: Uint8Array | undefined;
     try {
       interrupted();
       const response = await transport(apiOrigin + path, {
@@ -159,21 +163,23 @@ export function createNativeApiTransport(
       if (
         response.redirected ||
         response.headers.has('set-cookie') ||
-        (response.status < 400 && ![200, 201].includes(response.status)) ||
+        // The transport admits every success status an operation of the closed clients declares: 202 is a
+        // data-request creation's acceptance (ADR-0106 § 10). It does not decide which operation expects which:
+        // each SDK operation refuses any success status other than its own as `unexpected-status`.
+        (response.status < 400 && ![200, 201, 202].includes(response.status)) ||
         media !== (response.status < 400 ? 'application/json' : 'application/problem+json')
       )
         throw new NativeApiError('response');
-      const chunks: Uint8Array[] = [];
       let bytes = 0;
       while (reader) {
         const chunk = await reader.read();
         interrupted();
         if (chunk.done) break;
+        chunks.push(chunk.value);
         bytes += chunk.value.byteLength;
         if (bytes > NATIVE_API_MAX_BYTES) throw new NativeApiError('response');
-        chunks.push(chunk.value);
       }
-      const body = new Uint8Array(bytes);
+      body = new Uint8Array(bytes);
       let offset = 0;
       for (const chunk of chunks) {
         body.set(chunk, offset);
@@ -195,6 +201,8 @@ export function createNativeApiTransport(
       interrupted();
       throw error instanceof NativeApiError ? error : new NativeApiError('transport');
     } finally {
+      for (const chunk of chunks) chunk.fill(0);
+      body?.fill(0);
       signal.removeEventListener('abort', cancel);
       cancel();
       if (cancellation) await cancellation;

@@ -76,4 +76,11 @@ public enum TenantContextOrigin
 
     /// <summary>Actual private machine claim; only its tenant outbox production owner.</summary>
     ProviderEventRecipient,
+
+    /// <summary>
+    /// Verified subject and real host bound only to the subject's retained data-request scope groups (ADR-0106 § 9):
+    /// the groups <c>fn_identity_own_data_request_scopes</c> returned for that subject. It admits only
+    /// <c>OwnDataRequestEntry</c> operations and supplies no Membership, ordinary native session or tenant-wide read.
+    /// </summary>
+    HostAndOwnDataRequestScope,
 }

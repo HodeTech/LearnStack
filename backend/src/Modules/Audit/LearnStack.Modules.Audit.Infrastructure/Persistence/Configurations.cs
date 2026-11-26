@@ -178,6 +178,13 @@ internal sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEn
         builder.HasIndex(x => new { x.ModuleName, x.Operation, x.Timestamp })
             .HasDatabaseName("ix_audit_log_module_operation_timestamp")
             .IsDescending(false, false, true);
+
+        // A subject's rows by entity, newest first: the data-request selection of rows about the person's User or
+        // Membership (ADR-0107 § 3, ADR-0108 § 4), which no other index serves. The partial person-reference index of
+        // the same migration is raw SQL, because the model cannot express its predicate.
+        builder.HasIndex(x => new { x.TenantId, x.EntityType, x.EntityId, x.Timestamp })
+            .HasDatabaseName("ix_audit_log_tenant_id_entity_type_entity_id_timestamp")
+            .IsDescending(false, false, false, true);
     }
 }
 

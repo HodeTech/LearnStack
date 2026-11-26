@@ -368,6 +368,10 @@ sentence of theirs is stale. The Decision, Status, Date and every other section 
 unchanged. Acceptance of the linked records is not proof that anything they decide is
 implemented.
 
+### Amendment 2 — The confined announcement serves the closure fan-out act (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) reuse § 1's confined announcement for one more operator act: the per-group fan-out of a global account closure, which creates a group's erasure request and enqueues its job in that group's own transaction. The announcement is extended to carry the group's organization, because the Identity row policies admit a write of an organization-bound row only under that organization's announcement. No new setter is added, and the act is idempotent and resumable. The Decision, Status, Date and every other section of this record are unchanged.
+
 ## References
 
 - [ADR-0101](0101-platform-operator-authority.md),

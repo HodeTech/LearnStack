@@ -9,11 +9,13 @@ import {
 } from './administration-catalogues';
 import { checkCatalogues, publicCallsiteKeys } from '../test/ui-catalogue-checks';
 import enAdmin from './messages/en/admin.json';
+import enData from './messages/en/data.json';
 import enProfile from './messages/en/profile.json';
 import trAdmin from './messages/tr/admin.json';
+import trData from './messages/tr/data.json';
 import trProfile from './messages/tr/profile.json';
 
-function callsites(directory: string, namespace: 'admin' | 'profile'): string[] {
+function callsites(directory: string, namespace: 'admin' | 'profile' | 'dataRequest'): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) return entry.name === 'test' ? [] : callsites(path, namespace);
@@ -21,23 +23,27 @@ function callsites(directory: string, namespace: 'admin' | 'profile'): string[] 
     const source = readFileSync(path, 'utf8');
     // The native form grammar also has an unrelated profile(fields) parser.
     // UI owners bind these translators through the factory or typed copy port.
-    return /\b(?:createAdministrationTranslator|AdminCopy|ProfileCopy)\b/.test(source)
+    return /\b(?:createAdministrationTranslator|AdminCopy|ProfileCopy|DataRequestUiCopy)\b/.test(
+      source,
+    )
       ? publicCallsiteKeys(source, path, namespace)
       : [];
   });
 }
 describe('complete administration and profile UI catalogues', () => {
   it.each([
-    ['admin', enAdmin, trAdmin],
-    ['profile', enProfile, trProfile],
+    ['admin', 'admin', enAdmin, trAdmin],
+    ['profile', 'profile', enProfile, trProfile],
+    // Studio reads the person's closed data-request catalogue only through literal keys it shares (ADR-0106).
+    ['dataRequest', 'data', enData, trData],
   ] as const)(
     'validates all production %s callsites and both complete ICU catalogues',
-    (namespace, en, tr) => {
+    (namespace, catalogue, en, tr) => {
       const used = callsites(join(process.cwd(), 'src'), namespace);
       expect(used.length).toBeGreaterThan(10);
       checkCatalogues([en, tr], used);
-      expect(getAdministrationCatalogue('tr-Latn-TR').messages[namespace]).toBe(tr);
-      expect(getAdministrationCatalogue('ar').messages[namespace]).toBe(en);
+      expect(getAdministrationCatalogue('tr-Latn-TR').messages[catalogue]).toBe(tr);
+      expect(getAdministrationCatalogue('ar').messages[catalogue]).toBe(en);
     },
   );
 

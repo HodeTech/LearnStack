@@ -1330,6 +1330,21 @@ CREATE INDEX ix_audit_log_correlation_id
     WHERE correlation_id IS NOT NULL;
 CREATE INDEX ix_audit_log_module_operation_timestamp
     ON audit_log (module, operation, timestamp DESC);
+-- P03-10: the subject data-request statements (ADR-0107 § 3, § 6; ADR-0108 § 4).
+CREATE INDEX ix_audit_log_tenant_id_entity_type_entity_id_timestamp
+    ON audit_log (tenant_id, entity_type, entity_id, timestamp DESC);
+CREATE INDEX ix_audit_log_tenant_id_organization_id_person_reference
+    ON audit_log (tenant_id, organization_id, timestamp DESC)
+    WHERE organization_id IS NOT NULL
+      AND (metadata ? 'causal_actor_user_id'
+       OR (metadata -> 'authorization') ? 'causal_actor_user_id'
+       OR (metadata -> 'provider_event') ? 'affected_user_id');
+CREATE INDEX ix_audit_log_tenant_id_tenant_level_person_reference
+    ON audit_log (tenant_id, timestamp DESC)
+    WHERE organization_id IS NULL
+      AND (metadata ? 'causal_actor_user_id'
+       OR (metadata -> 'authorization') ? 'causal_actor_user_id'
+       OR (metadata -> 'provider_event') ? 'affected_user_id');
 
 -- Row security is NOT written here. Database Standards owns the ordinary
 -- tenant-owned, ORG-SCOPED template and ADR-0072's accepted exact global-identity
@@ -1338,16 +1353,28 @@ CREATE INDEX ix_audit_log_module_operation_timestamp
 -- the global branch adds only its exact confined owner evidence functions.
 ```
 
-**Four indexes, and deliberately not the org-scoped template's fifth.** The canonical
-template carries `ix_<table>_tenant_id_organization_id` so the organization arm of the
-policy has an index to read. This table does not take it. Every read the admin API
-issues is tenant-scope — `audit.event.read` is a Tenant-scope permission
+**Seven indexes, and deliberately not the org-scoped template's
+`(tenant_id, organization_id)`.** The canonical template carries
+`ix_<table>_tenant_id_organization_id` so the organization arm of the policy has an
+index to read. This table does not take it. Every read the admin API issues is
+tenant-scope — `audit.event.read` is a Tenant-scope permission
 ([§ 11](#11-querying-audit-log)) — so the arm that fires is
-`current_setting('app.scope') = 'tenant'`, which no index serves, and the four above all
-lead with a column those queries filter on. A fifth index on a high-volume append-only
-table is a write cost paid on every row for a predicate arm the shipped readers do not
-take. Phase 03's admin API is the place to revisit it, against a measured plan rather
-than this paragraph.
+`current_setting('app.scope') = 'tenant'`, which no index serves, and the indexes above
+all lead with a column those queries filter on. Such an index on a high-volume
+append-only table is a write cost paid on every row for a predicate arm the shipped
+readers do not take. Phase 03's admin API is the place to revisit it, against a measured
+plan rather than this paragraph. The three P03-10 indexes serve the subject data-request
+statements, measured in the
+[Audit module's performance budget](../modules/audit/README.md#performance-budget). The
+person-reference indexes order the keyed rows rather than index the person: under the
+row policy PostgreSQL applies a non-leakproof qual, and every JSON operator is one, only
+after the policy, so no expression index on a `metadata` path can take a person's value
+as an index condition. The keyed rows are split by organization into two partial
+indexes so that each branch of a request's reach (its organization, the tenant-level
+rows) is one newest-first seek that stops at the window: no organization's window reads
+another organization's keyed rows only to drop them at the policy, and the tenant-level
+branch has an index of its own because an `organization_id IS NULL` index condition
+yields no order and would sort the whole branch.
 
 **`module` is the column; `ModuleName` is the CLR property.** The names differ in exactly
 one direction and for one reason: `CA1716` flags `Module` as an identifier that collides
@@ -1363,10 +1390,10 @@ the same reason.
 The primary key is `audit_log_pkey` rather than `pk_audit_log`, because
 [ADR-0033](../decisions/0033-audit-durability-model.md) and
 [ADR-0016](../decisions/0016-audit-log-subsystem.md) both write it that way and two
-Accepted records fix a name. The three `CHECK`s and the four indexes take the standard's
-`ck_<table>_<rule>` and `ix_<table>_<columns>` forms, and so does the `TRUNCATE` trigger;
-the only other divergence on this table is `audit_log_append_only_guard`, which two
-Accepted records fix in the same way.
+Accepted records fix a name. The three `CHECK`s and the seven indexes take the standard's
+`ck_<table>_<rule>` and `ix_<table>_<columns>` forms, and so does the `TRUNCATE`
+trigger; the only other divergence on this table is `audit_log_append_only_guard`, which
+two Accepted records fix in the same way.
 
 The ordinary tenant policy shape is [Database Standards § Table classes](../standards/05-database.md)'s.
 Its [accepted global audit extension](../standards/05-database.md#proposed-global-central-audit-branch)
@@ -1690,49 +1717,54 @@ declared job name is not proof of deletion or production capacity.
 
 ## 10. GDPR / PII redaction
 
-When a user is GDPR-erased (`UserGdprDeletedIntegrationEvent` published), audit rows
-containing that user's PII are **redacted in place** (not deleted — the audit row's
-existence must remain auditable):
+When a person's data is erased or their account is closed, audit rows containing that
+person's PII are **redacted in place** (not deleted — the audit row's existence must remain
+auditable). No `UserGdprDeletedIntegrationEvent` carries the request; the redaction is an
+operator act ([ADR-0108](../decisions/0108-privileged-audit-redaction.md)):
 
 Redaction is one of exactly **two** sanctioned mutations of `audit_log` (the other is the
 retention purge, § 9). It is not an exception carved out of the append-only rule by
 convention — it is the shape the `audit_log_append_only_guard` trigger in § 7 was written
 to permit, and nothing else.
 
-**Phase 03 target; no privileged consumer is shipped.** ADR-0046 requires a
-separate privileged execution contract before this consumer can become Active.
-P02b-3's ordinary app-role executor refuses privileged subscriptions. Its shared
-inbox cannot atomically complete a platform-role transaction on another connection.
-The former handler-owned inbox sketch is superseded as the current target.
+**Phase 03 decision, Accepted; implementation is P03-10.** No privileged subscription is
+registered: ADR-0046's ordinary app-role executor keeps refusing them, and its shared inbox
+cannot atomically complete a platform-role transaction on another connection. The privileged
+half is a human-operator act on the platform scope under
+[ADR-0101](../decisions/0101-platform-operator-authority.md), with the platform operation
+`complete_erasure` (audit slug `audit.redaction.apply`) and, for a closure, the Finalize act.
 
-Phase 03 uses audited `EnterPlatformAdminScope(reason)` and specifies bounded
-result-audit access before the handler ships. Scope entry commits its own audit
-before work; the redaction and its MUST result audit then share the platform
-working transaction. Per-module `IUserReferenceLocator` implementations redact
-only declared payload references through that same handle. Idempotent progress
-and durable event reconciliation prevent duplicate result audits after a crash;
-no two-connection atomicity or external exactly-once effect is promised. The
-ordinary event-terminal fifth seam authorizes no privileged redaction caller.
-Phase 11 owns retention purge, not redaction.
+Scope entry commits its own audit before work. One Audit-owned executor behind the
+SharedKernel port `IAuditRedactor`, reached through one method of the scope handle bound to
+those operations, redacts the six granted columns; the facade rule that platform scope SQL
+cannot name `audit_log` stays. Per-module `IUserReferenceLocator` implementations only
+*declare* where person references live (entity type, property, kind); they run no SQL. The
+redaction, the request's status change and the witness-bound result row share one platform
+transaction, and a closure's Finalize uses the intent checkpoint of ADR-0044 Amendment 18,
+so a crash cannot duplicate a result row. No two-connection atomicity or external
+exactly-once effect is promised, and no new `IAuditStore` method exists. Phase 11 owns
+retention purge, not redaction.
 
 `actor_user_id`, `module`, `operation`, `operation_type`, `operation_class`, `outcome`,
 `correlation_id` and `timestamp` are **never** redacted; the trigger rejects an `UPDATE`
 that changes any of them. `metadata` is also outside the six-column redaction
 grant and can retain causal actor and authorization Membership/Role references.
-Preserving an attributable history is not proof of complete anonymisation. Phase 03 settles those references under
-the [erasure first-writer prerequisites](23-data-protection.md#erasure-authority-and-first-writer-prerequisites)
-before its redaction handler ships. P03-10's Audit participant locates the
-accepted authorization metadata through retained actor/subject attribution and
-reports surviving references; no metadata UPDATE authority follows.
+Preserving an attributable history is not proof of complete anonymisation. Phase 03
+settles those references under the
+[erasure first-writer prerequisites](23-data-protection.md#erasure-authority-and-first-writer-prerequisites)
+as [ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 6 decides. P03-10's
+Audit participant locates the accepted authorization metadata through retained
+actor/subject attribution and reports surviving references; no metadata UPDATE authority
+follows.
 
 Every module that stores user references in audit payloads registers an
 `IUserReferenceLocator`. [Phase 03 P03-10](../roadmap/phase-03-identity-admin.md#inherited-architecture-obligations)
 owns its applicable-module census and the handler above; P03-1 supplies their
 global User prerequisite. Neither creating that table nor its PII census grants
 the privileged redaction writer. The rule
-`Every_PII_Module_RegistersUserReferenceLocator` is registered in
-[the catalogue](../standards/21-architecture-tests-catalogue.md) against that phase —
-unasserted until then, because a rule naming a phase's absent types would only fail.
+`Every_PII_Module_RegistersUserReferenceLocator` in
+[the catalogue](../standards/21-architecture-tests-catalogue.md) asserts the census, and
+each declared path has a canary that proves the executor redacts it.
 
 ## 11. Querying audit log
 
@@ -1886,12 +1918,9 @@ update it constrains.
     **owner**, whom only the two triggers stop — `UPDATE` by the row guard and `TRUNCATE`
     by the statement guard.
 
-`Every_PII_Module_RegistersUserReferenceLocator` is registered in the catalogue against
-[Phase 03](../roadmap/phase-03-identity-admin.md) and is deliberately **unasserted** until
-P03-10 supplies the locators and erasure handler, consuming P03-1's User foundation.
-A rule naming types no packet has built could only fail. It is absent from the Packet 9
-list above for that reason and no other — the catalogue row, not this list, is where its
-status lives.
+`Every_PII_Module_RegistersUserReferenceLocator` is absent from the Packet 9 list above
+because P03-10 supplies the locators and the redaction executor it asserts, consuming
+P03-1's User foundation; the catalogue row, not this list, is where its status lives.
 
 `Audit_Config_Failure_Rejects_Operation` from the earlier draft is **withdrawn**, not
 renamed: under ADR-0033 as settled, a tenant-override read failure falls back to the
@@ -1912,7 +1941,7 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 | P02b-1 Steps 1–3 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion and owner-only domain drain. Hosted dispatch is implemented in P02b-2 Step 3; P02b-3 implements consumer delivery/inbox. |
 | P02b-2 Steps 1–4 | Schema/grants and confined producer transitions with MUST audit through the row-bound fifth seam; real-role atomicity/identity proofs. Steps 1–2 completed both review rounds. Step 3 implements hosted dispatch and observation, with both independent review rounds complete; Step 4 enforcement and local closeout are complete; all four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13) owns CI/merge status. |
 | P02b-3 Steps 1–6 | Shared transport-owned inbox and retained delivery envelopes, durable acceptance, per-subscription audit frames and fenced business completion; independent scheduling/replay and Tenancy-owned subscriber terminal audit through the row-bound fifth seam. Ordinary executor refuses privileged subscriptions. Both real default subscriptions are Active with nested initializer MUST audits and semantic Seeder handoff; Step 6 extends classification to each concrete integration handler, with actual API/Seeder catalogue and missing-Off controls. P02b-3 is complete and merged through PR #31; its [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15) owns final verification. |
-| [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
+| [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; the privileged redaction executor behind `IAuditRedactor` and per-module `IUserReferenceLocator` declarations ([ADR-0108](../decisions/0108-privileged-audit-redaction.md)). |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |
 | [09](../roadmap/phase-09-billing-integrations-analytics.md) | Hub-side `hub_audit_log` + cross-stream correlation query. |
 | [11](../roadmap/phase-11-production-hardening.md) | **Scale, not correctness**, and nothing in [ADR-0028](../decisions/0028-audit-log-partition-management.md) is executed by the Packet 9 migration ([its 2026-09-07 amendment](../decisions/0028-audit-log-partition-management.md)): `PARTITION BY RANGE (timestamp)` plus monthly partitions, the daily partition-management job, the daily retention purge, off-archive policy for partitions older than a year, per-tenant retention enforcement under plan limits. Trigger: measured `audit_log` growth ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). |
@@ -1935,8 +1964,8 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
   (standard).
 - [15-event-and-outbox.md](15-event-and-outbox.md) — audit fan-out to external sinks
   rides the outbox; MUST-class audit does not.
-- [29-dapr-integration.md](29-dapr-integration.md) — `UserGdprDeletedIntegrationEvent`
-  transport.
+- [29-dapr-integration.md](29-dapr-integration.md) — transport; no `UserGdprDeletedIntegrationEvent`
+  is introduced ([ADR-0108](../decisions/0108-privileged-audit-redaction.md)).
 
 ### Native logout notification evidence
 

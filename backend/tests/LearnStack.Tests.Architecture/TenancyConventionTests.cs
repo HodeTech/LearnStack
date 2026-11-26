@@ -252,6 +252,13 @@ public sealed partial class TenancyConventionTests
         AnnouncesBeyondFixedSeedScope(FixedSeedOwner,
             fixedSeedSource.Replace("_depth != 1", "false", StringComparison.Ordinal)).Should().BeTrue(
                 "a weakened same-owner gate loses the scope-only carrier recognition");
+        Announces("SELECT pg_catalog.set_config('lock_timeout', '3s', true)").Should().BeFalse("a wait bound announces nothing");
+        foreach (var statement in new[]
+                 {
+                     "SELECT set_config('lock_timeout', '3s', true), set_config('app.tenant_id', @tenant, true)",
+                     "SELECT set_config(@name, @value, true)", "SELECT set_config('statement_timeout', '3s', true)",
+                 })
+            Announces(statement).Should().BeTrue("only the literal lock_timeout bound is exempt");
         foreach (var statement in new[] { "SELECT set_config('app.tenant_id', @tenant, true)", "SET LOCAL app.scope = 'tenant'" })
             AnnouncesBeyondFixedSeedScope(FixedSeedOwner, fixedSeedSource
                 + "\nclass ExtraSetter { void Run() { Execute(\"" + statement + "\"); } }").Should().BeTrue(
@@ -263,10 +270,13 @@ public sealed partial class TenancyConventionTests
     /// The <c>SET</c> form must carry a value — <c>=</c> or <c>TO</c> — because the same words
     /// appear in prose a message hands a developer: <c>ModuleDbContextRegistration</c> throws
     /// "…it never saw SET LOCAL app.tenant_id", which announces nothing. Comments are stripped
-    /// before the scan; strings are not, because a setter IS a string.
+    /// before the scan; strings are not, because a setter IS a string. The one literal exemption is
+    /// <c>set_config('lock_timeout', …)</c>, which bounds a wait and announces no tenant, organization or scope
+    /// (the closure's fence acquirer takes it before its first key); a variable name, a different setting or a
+    /// computed first argument still matches.
     /// </remarks>
     [GeneratedRegex(
-        @"set_config\s*\(|\bSET\s+(?:LOCAL\s+|SESSION\s+)?app\.[A-Za-z_][A-Za-z0-9_]*\s*(?:=|\bTO\b)",
+        @"set_config\s*\((?!\s*'lock_timeout'\s*,)|\bSET\s+(?:LOCAL\s+|SESSION\s+)?app\.[A-Za-z_][A-Za-z0-9_]*\s*(?:=|\bTO\b)",
         RegexOptions.IgnoreCase)]
     private static partial Regex SessionSetter();
 

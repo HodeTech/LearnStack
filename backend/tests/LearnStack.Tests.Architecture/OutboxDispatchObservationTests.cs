@@ -216,6 +216,15 @@ public sealed partial class OutboxDispatchConventionTests
         ObservationRegistrationOffenders(services).Should().NotBeEmpty("duplicate SMTP startup qualification is not another admitted worker");
         services.Remove(smtpStartup);
         ObservationRegistrationOffenders(services).Should().BeEmpty("restoring SMTP qualification restores the clean worker set");
+        var exportStartup = services.Single(descriptor => descriptor.ServiceType == typeof(IHostedService)
+            && HostedAliasIdentity(descriptor) == "LearnStack.Api.Composition.DataExportStartupService");
+        services.Remove(exportStartup);
+        ObservationRegistrationOffenders(services).Should().NotBeEmpty("the mandatory export key-ring qualification startup cannot disappear");
+        services.Add(exportStartup);
+        services.Add(exportStartup);
+        ObservationRegistrationOffenders(services).Should().NotBeEmpty("duplicate export key-ring qualification is not another admitted worker");
+        services.Remove(exportStartup);
+        ObservationRegistrationOffenders(services).Should().BeEmpty("restoring the export key-ring qualification restores the clean worker set");
         services.Remove(worker);
         ObservationRegistrationOffenders(services).Should().NotBeEmpty("Fix: missing mandatory execution must be detected");
         services.Add(worker);
@@ -505,6 +514,7 @@ public sealed partial class OutboxDispatchConventionTests
             [typeof(OutboxProcessor).FullName!, typeof(DeliveryProcessor).FullName!,
                 JobHostedService,
                 "LearnStack.Api.Composition.InvitationEmailStartupService",
+                "LearnStack.Api.Composition.DataExportStartupService",
                 "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
         if (workers.Any(descriptor => descriptor.Lifetime != ServiceLifetime.Singleton)) offenders.Add("Mandatory singleton worker registration");
         foreach (var type in new[] { typeof(OutboxProcessor), typeof(DeliveryProcessor), typeof(LearnStack.Api.Jobs.BackgroundJobHostedService) })

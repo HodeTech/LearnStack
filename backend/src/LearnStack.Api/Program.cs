@@ -52,6 +52,8 @@ builder.Services.AddLearnStackProviderEventMirror(builder.Configuration);
 // ADR-0099: after persistence, so the confined federation adapter and guarded egress fetcher replace the
 // module's fail-closed defaults only when the federation admin client is configured.
 builder.Services.AddLearnStackFederationAdapter(builder.Configuration);
+// ADR-0107 § 7: the confined account-removal adapter replaces the refusing default only when its client secret is configured.
+builder.Services.AddLearnStackAccountRemovalAdapter(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();
 
 // Register and activate the entire closed HTTP boundary together. Minimal hosting

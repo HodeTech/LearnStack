@@ -27,10 +27,13 @@ public sealed partial class OperationPolicyOwnershipTests
     private const string InvitationEvaluator = "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationAuthorization";
     private const string InvitationPolicyEvaluator = "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers";
     private const string FederationEvaluator = "LearnStack.Modules.Identity.Application.Federation.FederationAuthorization";
+    private const string DataRequestEvaluator = "LearnStack.Modules.Identity.Application.DataRequests.DataRequestAuthorization";
     private static readonly (string Type, string Method, string Target, string Name)[] InvitationChecks =
     [
         (InvitationEvaluator, "RecheckAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
         (InvitationPolicyEvaluator, "OwnAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
+        // ADR-0106 § 4: the data-request writers recheck the live invocation under their fences the same way.
+        (DataRequestEvaluator, "RecheckAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
     ];
     private static readonly (string Type, string Method, string Target, string Name)[] MemberChecks =
     [
@@ -300,7 +303,7 @@ public sealed partial class OperationPolicyOwnershipTests
         Exact(Decision, ".ctor", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Witness, ".ctor", [(Witness + "/MintingSource", "ForTenantRead", 1)]);
         Exact(Invocation + "/MintingSource", "ForInvocation", [(Coordinator, "ExecuteAsync", 1)]);
-        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 10),
+        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 12),
             (RoleEvaluator, "RecheckAsync", 2), (MemberEvaluator, "RecheckAsync", 2)]);
         Exact(Witness + "/MintingSource", "ForTenantRead", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync", [(Coordinator, "ExecuteAsync", 1),
@@ -308,7 +311,7 @@ public sealed partial class OperationPolicyOwnershipTests
             (InvitationEvaluator, "RecheckAsync", 1), (InvitationPolicyEvaluator, "OwnAsync", 1),
             (DefinitionEvaluator, "RecheckAsync", 1), (OwnConsentEvaluator, "AdmitGrantAsync", 1),
             (ConsentReceiptEvaluator, "RecheckAsync", 1), (ConsentReadEvaluator, "AuthorizedAsync", 1),
-            (FederationEvaluator, "RecheckAsync", 1)]);
+            (FederationEvaluator, "RecheckAsync", 1), (DataRequestEvaluator, "RecheckAsync", 1)]);
         Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 2)]);
         Exact(Coordinator, "ExecuteRequestAsync", [(AuthorizationBehavior, "Handle", 1)]);
         Exact(HttpSource, "ForValidatedScope", [(HttpSource, Permissions + "IAuthorizationCandidateSource.ForValidatedScope", 1),
@@ -317,7 +320,7 @@ public sealed partial class OperationPolicyOwnershipTests
             ("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 1)]);
         Exact(Coordinator, "CheckHttpAsync", [("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 4),
             ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", 1),
-            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 2)]);
+            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 3)]);
         Exact(Witness, "TryBindTo", [(Unit, "SetTenantContextCoreAsync", 2)]);
         Exact(Witness, "IsBoundTo", [(Unit, "SetTenantContextCoreAsync", 1), (Unit, "ValidateOperationReadScope", 1)]);
         Exact(Invocation, "TryBindRead", [(Witness, "TryBindTo", 1)]);

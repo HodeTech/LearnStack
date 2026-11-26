@@ -1,7 +1,8 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- Protected views use freshly admitted full document navigation. */
-import type { AdminCopy, ProfileCopy } from '@/i18n/administration-catalogues';
+import type { AdminCopy, DataRequestUiCopy, ProfileCopy } from '@/i18n/administration-catalogues';
 import type { NativePageSnapshot, PageView } from '@/server/auth/page-contract';
 
+import { MemberDataRequests } from './admin-data-requests';
 import { MutationFields, ProfileFields, ProfileValues } from './admin-forms';
 import { roleLabel, statusLabel } from './admin-labels';
 import type { FieldCopy } from './custom-field-controls';
@@ -58,6 +59,7 @@ export function MemberDetails({
   admin,
   profile,
   fieldCopy,
+  requestCopy,
 }: {
   readonly snapshot: NativePageSnapshot;
   readonly view: Extract<PageView, { kind: 'member' }>;
@@ -65,6 +67,11 @@ export function MemberDetails({
   readonly admin: AdminCopy;
   readonly profile: ProfileCopy;
   readonly fieldCopy: FieldCopy;
+  readonly requestCopy: Readonly<{
+    admin: AdminCopy;
+    dataRequest: DataRequestUiCopy;
+    locale: string;
+  }>;
 }) {
   const member = view.member;
   const target = ['membershipId', member.membershipId] as const;
@@ -223,6 +230,12 @@ export function MemberDetails({
           </details>
         </section>
       )}
+      <MemberDataRequests
+        snapshot={snapshot}
+        member={member}
+        requests={view.dataRequests}
+        copy={requestCopy}
+      />
     </>
   );
 }

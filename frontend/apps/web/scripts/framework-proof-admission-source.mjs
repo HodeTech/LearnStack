@@ -76,9 +76,11 @@ export function instrumentCopiedAdmissionRuntime(sourceText) {
                 ? bffRequests.run(binding, request, response, () =>
                     nativeConsentTarget(binding.target)
                       ? consentHandler(binding, request, response)
-                      : nativeInvitationTarget(binding.target)
-                        ? invitationHandler(binding, request, response)
-                        : handle(request, response),
+                      : nativeDataRequestTarget(binding.target)
+                        ? dataRequestHandler(binding, request, response)
+                        : nativeInvitationTarget(binding.target)
+                          ? invitationHandler(binding, request, response)
+                          : handle(request, response),
                   )
                 : handle(request, response),
             ),
@@ -92,9 +94,11 @@ export function instrumentCopiedAdmissionRuntime(sourceText) {
                   ? bffRequests.run(binding, request, response, () =>
                       nativeConsentTarget(binding.target)
                         ? consentHandler(binding, request, response)
-                        : nativeInvitationTarget(binding.target)
-                          ? invitationHandler(binding, request, response)
-                          : handle(request, response))
+                        : nativeDataRequestTarget(binding.target)
+                          ? dataRequestHandler(binding, request, response)
+                          : nativeInvitationTarget(binding.target)
+                            ? invitationHandler(binding, request, response)
+                            : handle(request, response))
                   : handle(request, response);
               }))`,
   );
